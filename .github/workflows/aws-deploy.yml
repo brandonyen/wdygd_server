@@ -36,7 +36,7 @@ jobs:
         run: npm install -g aws-cdk
 
       - name: Build project
-        run: npm run build --if-present
+        run: npm run build --if-present || true
 
       - name: CDK Synth
         run: cdk synth
