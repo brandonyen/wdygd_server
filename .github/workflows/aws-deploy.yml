@@ -1,0 +1,45 @@
+name: Deploy CDK Stack
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::245279632520:role/github-actions-wdygd-deploy
+          aws-region: us-east-1
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Build project
+        run: npm run build --if-present
+
+      - name: CDK Synth
+        run: cdk synth
+
+      - name: Deploy CDK
+        run: cdk deploy --require-approval never
