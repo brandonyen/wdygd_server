@@ -1,4 +1,6 @@
-exports.handler = async (event) => {
+import type { APIGatewayProxyEvent } from "aws-lambda";
+
+exports.handler = async (event: APIGatewayProxyEvent) => {
   // Extract specific properties from the event object
   const { resource, path, httpMethod, headers, queryStringParameters, body } =
     event;
