@@ -2,6 +2,7 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as path from "node:path";
 
 export class WdygdServerStack extends cdk.Stack {
@@ -18,6 +19,16 @@ export class WdygdServerStack extends cdk.Stack {
     const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
       handler: fn,
       restApiName: `BackendApi`,
+    });
+
+    const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/slack/index.ts",
+      ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_22_X,
     });
   }
 }
