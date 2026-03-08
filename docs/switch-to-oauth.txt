@@ -1,0 +1,46 @@
+Step 1: Create GitHub OAuth App
+Go to GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
+Fill in:
+Application name: Your app name
+Homepage URL: Your website
+Authorization callback URL: https://your-api.com/auth/github/callback
+After creating, copy the Client ID and generate a Client Secret
+Step 2: Set Environment Variables
+Update your .env (or Lambda environment in AWS):
+
+
+GITHUB_CLIENT_ID=Iv1.abc123...
+GITHUB_CLIENT_SECRET=secret123...
+GITHUB_REDIRECT_URI=https://your-api.com/auth/github/callback
+Step 3: Deploy OAuth Endpoints
+The oauth.ts handler needs API Gateway routes:
+
+Method	Path	Purpose
+GET	/auth/github	Start OAuth flow
+GET	/auth/github/callback	GitHub redirects here
+GET	/auth/github/status	Check if connected
+DELETE	/auth/github	Disconnect account
+Step 4: Set Up Persistent Storage
+Replace the local file store with DynamoDB (the local /tmp store won't persist in Lambda). You'll need to:
+
+Add a DynamoDB table to your CDK stack
+Implement dynamoDBStore in token-store.ts
+Set TOKEN_STORE_TYPE=dynamodb
+Step 5: User Flow
+For your users:
+
+User visits: GET /auth/github?userId=user123&redirectUrl=https://yourapp.com/connected
+User authorizes on GitHub
+GitHub redirects to your callback → token stored
+User redirected to your app
+For API requests:
+
+
+{
+  "userId": "user123",    // ← Use this instead of githubToken
+  "owner": "facebook",
+  "repo": "react",
+  "startDate": "2024-03-01T00:00:00Z",
+  "endDate": "2024-03-07T23:59:59Z"
+}
+The code automatically looks up the stored token using userId.
