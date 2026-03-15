@@ -47,9 +47,6 @@ export class WdygdServerStack extends cdk.Stack {
       generateSecret: false,
     });
 
-    new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
-    new cdk.CfnOutput(this, "UserPoolClientId", { value: userPoolClient.userPoolClientId });
-
     // Environment Variables (Supabase credentials)
     const defaultEnvironment = {
       SUPABASE_URL: process.env.SUPABASE_URL || "PLACEHOLDER_URL",
@@ -224,5 +221,24 @@ export class WdygdServerStack extends cdk.Stack {
       actions: ["bedrock:InvokeModel"],
       resources: ["*"],
     }));
+
+    // Outputs
+    new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
+    new cdk.CfnOutput(this, "UserPoolClientId", {
+      value: userPoolClient.userPoolClientId,
+    });
+    new cdk.CfnOutput(this, "IngestionQueueUrl", {
+      value: ingestionQueue.queueUrl,
+    });
+    new cdk.CfnOutput(this, "SummaryQueueUrl", { value: summaryQueue.queueUrl });
+    new cdk.CfnOutput(this, "SchedulerLambdaArn", {
+      value: schedulerLambda.functionArn,
+    });
+    new cdk.CfnOutput(this, "IngestionLambdaArn", {
+      value: ingestionLambda.functionArn,
+    });
+    new cdk.CfnOutput(this, "SummaryLambdaArn", {
+      value: summaryLambda.functionArn,
+    });
   }
 }
