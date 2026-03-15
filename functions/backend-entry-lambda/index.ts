@@ -1,4 +1,4 @@
-exports.handler = async (event) => {
+exports.handler = async (event: any) => {
   // Extract specific properties from the event object
   const { resource, path, httpMethod, headers, queryStringParameters, body } =
     event;
