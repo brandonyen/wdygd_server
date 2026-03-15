@@ -16,19 +16,31 @@ export class WdygdServerStack extends cdk.Stack {
     super(scope, id, props);
 
     // Cognito User Pool for Auth
-    const userPool = new cognito.UserPool(this, "WdygdUserPool", {
-      userPoolName: "wdygd-user-pool",
-      selfSignUpEnabled: true,
-      signInAliases: { email: true },
-      autoVerify: { email: true },
-      passwordPolicy: {
-        minLength: 8,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireDigits: true,
-        requireSymbols: false,
-      },
-    });
+    const existingUserPoolId = this.node.tryGetContext("userPoolId");
+    let userPool: cognito.IUserPool;
+
+    if (existingUserPoolId) {
+      userPool = cognito.UserPool.fromUserPoolId(
+        this,
+        "WdygdUserPool",
+        existingUserPoolId,
+      );
+    } else {
+      userPool = new cognito.UserPool(this, "WdygdUserPool", {
+        userPoolName: "wdygd-user-pool",
+        selfSignUpEnabled: true,
+        signInAliases: { email: true },
+        autoVerify: { email: true },
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        passwordPolicy: {
+          minLength: 8,
+          requireLowercase: true,
+          requireUppercase: true,
+          requireDigits: true,
+          requireSymbols: false,
+        },
+      });
+    }
 
     const userPoolClient = new cognito.UserPoolClient(this, "WdygdUserPoolClient", {
       userPool,
