@@ -15,8 +15,8 @@ interface MessageInfo {
   threadReplies: { user: string; text: string; timestamp: string }[];
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// need to remove accessToken from logs and error messages to avoid leaking it
 export const handler = async (event: SlackEvent) => {
   const { channelId, startDate, endDate, accessToken } = event;
 
@@ -48,26 +48,33 @@ export const handler = async (event: SlackEvent) => {
         const threadReplies: MessageInfo["threadReplies"] = [];
 
         if (msg.reply_count && msg.reply_count > 0 && msg.ts) {
-          await sleep(1200);
+          let replyCursor: string | undefined;
 
-          try {
-            const threadResult = await client.conversations.replies({
-              channel: channelId,
-              ts: msg.ts,
-              limit: 20,
-            });
-
-            for (const reply of (threadResult.messages ?? []).slice(1)) {
-              if (reply.user) userIds.add(reply.user);
-              threadReplies.push({
-                user: reply.user ?? "unknown",
-                text: reply.text ?? "",
-                timestamp: reply.ts ?? "",
+          do {
+            try {
+              const threadResult = await client.conversations.replies({
+                channel: channelId,
+                ts: msg.ts,
+                limit: 100,
+                cursor: replyCursor,
               });
+
+              for (const reply of threadResult.messages ?? []) {
+                if (reply.ts === msg.ts) continue; // skip parent message
+                if (reply.user) userIds.add(reply.user);
+                threadReplies.push({
+                  user: reply.user ?? "unknown",
+                  text: reply.text ?? "",
+                  timestamp: reply.ts ?? "",
+                });
+              }
+
+              replyCursor = threadResult.response_metadata?.next_cursor || undefined;
+            } catch (e) {
+              console.warn(`Skipping remaining thread ${msg.ts} due to error`, e);
+              break;
             }
-          } catch (e) {
-            console.warn(`Skipping thread ${msg.ts} due to error`, e);
-          }
+          } while (replyCursor);
         }
 
         messages.push({
