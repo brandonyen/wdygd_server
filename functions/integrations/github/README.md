@@ -5,11 +5,13 @@ Fetches GitHub repository data (commits, PRs, reviews, issues) for a date range 
 ## Setup
 
 1. Copy `.env.example` to `.env` in the project root:
+
    ```bash
    cp .env.example .env
    ```
 
 2. Add your GitHub token to `.env`:
+
    ```
    GITHUB_TOKEN=ghp_your_token_here
    ```
@@ -50,19 +52,20 @@ npm test -- --testPathPattern="github"
 
 ```json
 {
-  "githubToken": "ghp_xxx",      // Option 1: Direct token
-  "userId": "user123",           // Option 2: OAuth user lookup (use one or the other)
+  "githubToken": "ghp_xxx", // Option 1: Direct token
+  "userId": "user123", // Option 2: OAuth user lookup (use one or the other)
   "owner": "facebook",
   "repo": "react",
   "startDate": "2024-03-01T00:00:00Z",
   "endDate": "2024-03-07T23:59:59Z",
-  "includeIssues": true          // Optional, defaults to false
+  "includeIssues": true // Optional, defaults to false
 }
 ```
 
 ### Response
 
 Returns structured data with:
+
 - `commits` - List of commits with sha, message, author, date, url
 - `pullRequests` - PRs with state (open/closed/merged), review count, additions/deletions
 - `reviews` - Code reviews with reviewer, state (APPROVED/CHANGES_REQUESTED/COMMENTED)

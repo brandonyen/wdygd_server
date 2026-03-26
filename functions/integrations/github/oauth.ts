@@ -29,7 +29,7 @@ function getConfig() {
 
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error(
-      "Missing required environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI"
+      "Missing required environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI",
     );
   }
 
@@ -45,7 +45,7 @@ function getConfig() {
  * GET /auth/github?userId=xxx&redirectUrl=xxx
  */
 async function handleInitiate(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const { clientId, redirectUri } = getConfig();
 
@@ -61,7 +61,7 @@ async function handleInitiate(
 
   // State parameter to prevent CSRF and pass data through the OAuth flow
   const state = Buffer.from(
-    JSON.stringify({ userId, finalRedirectUrl })
+    JSON.stringify({ userId, finalRedirectUrl }),
   ).toString("base64");
 
   // GitHub OAuth scopes needed for reading repo data
@@ -87,7 +87,7 @@ async function handleInitiate(
  * GET /auth/github/callback?code=xxx&state=xxx
  */
 async function handleCallback(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const { clientId, clientSecret } = getConfig();
 
@@ -136,7 +136,7 @@ async function handleCallback(
         client_secret: clientSecret,
         code,
       }),
-    }
+    },
   );
 
   const tokenData = (await tokenResponse.json()) as GitHubTokenResponse;
@@ -214,7 +214,7 @@ async function handleCallback(
  * GET /auth/github/status?userId=xxx
  */
 async function handleStatus(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const userId = event.queryStringParameters?.userId;
 
@@ -253,7 +253,7 @@ async function handleStatus(
  * DELETE /auth/github?userId=xxx
  */
 async function handleDisconnect(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const userId = event.queryStringParameters?.userId;
 
@@ -281,7 +281,7 @@ async function handleDisconnect(
 // ============================================================================
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   try {
     const path = event.path ?? "";

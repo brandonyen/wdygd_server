@@ -17,22 +17,22 @@ This document covers integrating GitHub's APIs into our server to fetch user act
 
 The choice depends on update frequency and whether you control the repos.
 
-| | API (Polling) | Webhooks |
-|--|---------------|----------|
-| **How it works** | You pull data from GitHub | GitHub pushes data to you |
-| **Update speed** | On-demand or scheduled | Real-time |
-| **Setup** | Just need a token | Need public endpoint + webhook registered per repo |
-| **Works for any public repo** | Yes | No—must own or have admin access |
-| **Cost driver** | Requests you make (controllable) | Events fired (not controllable) |
+|                               | API (Polling)                    | Webhooks                                           |
+| ----------------------------- | -------------------------------- | -------------------------------------------------- |
+| **How it works**              | You pull data from GitHub        | GitHub pushes data to you                          |
+| **Update speed**              | On-demand or scheduled           | Real-time                                          |
+| **Setup**                     | Just need a token                | Need public endpoint + webhook registered per repo |
+| **Works for any public repo** | Yes                              | No—must own or have admin access                   |
+| **Cost driver**               | Requests you make (controllable) | Events fired (not controllable)                    |
 
 **When to use which:**
 
-| Use Case | Choice |
-|----------|--------|
-| Fetch activity from arbitrary users | API — can't install webhooks on repos you don't own |
-| Real-time updates on your team's repos | Webhooks — you control the repos |
-| Daily/weekly summaries | API — scheduled Lambda job |
-| User clicks button to see stats | API — fetch on demand |
+| Use Case                               | Choice                                              |
+| -------------------------------------- | --------------------------------------------------- |
+| Fetch activity from arbitrary users    | API — can't install webhooks on repos you don't own |
+| Real-time updates on your team's repos | Webhooks — you control the repos                    |
+| Daily/weekly summaries                 | API — scheduled Lambda job                          |
+| User clicks button to see stats        | API — fetch on demand                               |
 
 **For our project:** We're fetching activity for arbitrary users, so **API is our only option**—you can't install webhooks on repos you don't own. Even with OAuth, you can't auto-install webhooks; the user would need to grant admin permissions, which most won't do for a progress tracker.
 
@@ -42,26 +42,24 @@ The choice depends on update frequency and whether you control the repos.
 
 Two different ways to authenticate with GitHub for user data.
 
-| | OAuth App | GitHub App |
-|--|-----------|------------|
-| **Acts as** | The user who authorized it | Itself (bot) or on behalf of users |
-| **Rate limit** | 5,000/hour (per user token) | 15,000/hour (as app) |
-| **Setup complexity** | Simpler | More complex |
-| **Permissions** | Broad scopes (repo, user) | Granular (pick exact permissions) |
-| **Installation** | User authorizes once | Installed on specific repos/orgs |
-| **Best for** | "Login with GitHub", user-specific data | Bots, CI/CD, org-wide automation |
+|                      | OAuth App                               | GitHub App                         |
+| -------------------- | --------------------------------------- | ---------------------------------- |
+| **Acts as**          | The user who authorized it              | Itself (bot) or on behalf of users |
+| **Rate limit**       | 5,000/hour (per user token)             | 15,000/hour (as app)               |
+| **Setup complexity** | Simpler                                 | More complex                       |
+| **Permissions**      | Broad scopes (repo, user)               | Granular (pick exact permissions)  |
+| **Installation**     | User authorizes once                    | Installed on specific repos/orgs   |
+| **Best for**         | "Login with GitHub", user-specific data | Bots, CI/CD, org-wide automation   |
 
 **When to use which:**
 
-| Use Case | Choice |
-|----------|--------|
-| Users log in to see their own activity | OAuth App |
-| Need access to user's private repos | OAuth App |
-| Building a bot or automated tool | GitHub App |
-| Need higher rate limits (15k vs 5k) | GitHub App |
-| Want fine-grained permissions | GitHub App |
-
-
+| Use Case                               | Choice     |
+| -------------------------------------- | ---------- |
+| Users log in to see their own activity | OAuth App  |
+| Need access to user's private repos    | OAuth App  |
+| Building a bot or automated tool       | GitHub App |
+| Need higher rate limits (15k vs 5k)    | GitHub App |
+| Want fine-grained permissions          | GitHub App |
 
 # github app requires more maintenance and setup work
 
@@ -71,6 +69,7 @@ Register app (name, callback URL) — 2 min
 Save client ID + secret
 Implement token exchange endpoint
 Done
+
 ## GitHub App setup(JWT handling, installation management):
 
 Register app with granular permissions — 5 min
@@ -90,11 +89,13 @@ Done
 GitHub offers two ways to fetch data—REST for simple queries, GraphQL for more complex or batched requests.
 
 ### REST API
+
 - Simple HTTP requests
 - One resource per request
 - Good for straightforward queries
 
 ### GraphQL API
+
 - Single request for multiple resources
 - Fetch only the fields you need
 - Better for contribution calendars and complex queries
@@ -106,18 +107,19 @@ GitHub offers two ways to fetch data—REST for simple queries, GraphQL for more
 A single team-owned PAT works for public data; OAuth is required only if users need access to their private repos.
 
 ### Single Team Token (PAT)
+
 - **One token** owned by a team member or service account
 - Server uses it for all API calls
 - Users don't need to do anything
 - Works for **public data only**
 
-| Data | Works with single PAT? |
-|------|------------------------|
-| Public repo commits | Yes |
-| Public user events | Yes |
-| Public contribution calendar | Yes |
-| Private repo commits | No |
-| Private contributions | No |
+| Data                         | Works with single PAT? |
+| ---------------------------- | ---------------------- |
+| Public repo commits          | Yes                    |
+| Public user events           | Yes                    |
+| Public contribution calendar | Yes                    |
+| Private repo commits         | No                     |
+| Private contributions        | No                     |
 
 ### Per-User OAuth
 
@@ -135,11 +137,11 @@ OAuth requires registering an app under a team member's GitHub account (or org) 
 
 Unauthenticated requests (60/hour) won't work for us since Lambda requests share AWS IPs—we need at least a PAT (5,000/hour).
 
-| Auth Method | Rate Limit | Cost |
-|-------------|-----------|------|
-| Unauthenticated | 60/hour (by IP) | Free |
-| Personal Access Token (PAT) | 5,000/hour | Free |
-| GitHub App | 15,000/hour | Free |
+| Auth Method                 | Rate Limit      | Cost |
+| --------------------------- | --------------- | ---- |
+| Unauthenticated             | 60/hour (by IP) | Free |
+| Personal Access Token (PAT) | 5,000/hour      | Free |
+| GitHub App                  | 15,000/hour     | Free |
 
 ### Will 60 req/hour work for multiple users?
 
@@ -158,12 +160,12 @@ Unauthenticated requests (60/hour) won't work for us since Lambda requests share
 
 GitHub API is free at all tiers; our main costs are AWS infrastructure.
 
-| Resource | Cost |
-|----------|------|
-| GitHub API | Free (all tiers) |
-| AWS Lambda | ~$0.20 per 1M requests |
-| API Gateway | ~$3.50 per 1M requests |
-| Secrets Manager | $0.40/secret/month |
+| Resource        | Cost                   |
+| --------------- | ---------------------- |
+| GitHub API      | Free (all tiers)       |
+| AWS Lambda      | ~$0.20 per 1M requests |
+| API Gateway     | ~$3.50 per 1M requests |
+| Secrets Manager | $0.40/secret/month     |
 
 **Estimated monthly cost for MVP:** < $5 (assuming < 100k requests)
 
@@ -184,22 +186,26 @@ Steps to get GitHub API access working in our Lambda.
 ### 2. Store Token in AWS
 
 **Option A: Environment Variable** — Quick setup for development, but less secure and harder to rotate.
+
 ```typescript
 // wdygd_server-stack.ts
 const fn = new lambda.Function(this, "BackendApiFn", {
   // ...existing config
   environment: {
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN // Set in CI/CD, not committed
-  }
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN, // Set in CI/CD, not committed
+  },
 });
 ```
 
 **Option B: Secrets Manager** — Recommended for production; secrets are encrypted, auditable, and easy to rotate.
+
 ```typescript
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 const githubSecret = secretsmanager.Secret.fromSecretNameV2(
-  this, 'GitHubToken', 'github/api-token'
+  this,
+  "GitHubToken",
+  "github/api-token",
 );
 githubSecret.grantRead(fn);
 ```
@@ -209,6 +215,7 @@ githubSecret.grantRead(fn);
 Only needed if users want private repo data—skip this for public-only access.
 
 **Step 1: Register an OAuth App**
+
 1. Go to GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
 2. Fill in:
    - **Application name:** Your app name
@@ -217,6 +224,7 @@ Only needed if users want private repo data—skip this for public-only access.
 3. Save the **Client ID** and **Client Secret**
 
 **Step 2: OAuth Flow**
+
 ```
 1. User clicks "Login with GitHub"
 2. Redirect to: https://github.com/login/oauth/authorize?client_id=YOUR_CLIENT_ID&scope=repo,read:user
@@ -229,6 +237,7 @@ Only needed if users want private repo data—skip this for public-only access.
 ```
 
 **Scopes for private data:**
+
 - `repo` — Full access to private repos
 - `read:user` — Read user profile
 
@@ -253,14 +262,14 @@ Copy-paste examples using raw `fetch`—no external dependencies required.
 ```typescript
 async function getUserCommits(owner: string, repo: string, author?: string) {
   const url = new URL(`https://api.github.com/repos/${owner}/${repo}/commits`);
-  if (author) url.searchParams.set('author', author);
+  if (author) url.searchParams.set("author", author);
 
   const res = await fetch(url, {
     headers: {
-      'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    }
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
   });
   return res.json();
 }
@@ -272,9 +281,9 @@ async function getUserCommits(owner: string, repo: string, author?: string) {
 async function getUserEvents(username: string) {
   const res = await fetch(`https://api.github.com/users/${username}/events`, {
     headers: {
-      'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github+json'
-    }
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+    },
   });
   return res.json(); // Returns last 90 days, max 300 events
 }
@@ -305,13 +314,13 @@ async function getContributions(username: string) {
     }
   `;
 
-  const res = await fetch('https://api.github.com/graphql', {
-    method: 'POST',
+  const res = await fetch("https://api.github.com/graphql", {
+    method: "POST",
     headers: {
-      'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, variables: { username } })
+    body: JSON.stringify({ query, variables: { username } }),
   });
   return res.json();
 }
@@ -323,14 +332,14 @@ async function getContributions(username: string) {
 
 Quick reference for common endpoints we might use.
 
-| Data | Endpoint |
-|------|----------|
-| User's public events | `GET /users/{username}/events/public` |
-| Commits in a repo | `GET /repos/{owner}/{repo}/commits` |
-| User's repos | `GET /users/{username}/repos` |
-| Repo contributors | `GET /repos/{owner}/{repo}/contributors` |
+| Data                     | Endpoint                                          |
+| ------------------------ | ------------------------------------------------- |
+| User's public events     | `GET /users/{username}/events/public`             |
+| Commits in a repo        | `GET /repos/{owner}/{repo}/commits`               |
+| User's repos             | `GET /users/{username}/repos`                     |
+| Repo contributors        | `GET /repos/{owner}/{repo}/contributors`          |
 | Commit activity (weekly) | `GET /repos/{owner}/{repo}/stats/commit_activity` |
-| Code frequency | `GET /repos/{owner}/{repo}/stats/code_frequency` |
+| Code frequency           | `GET /repos/{owner}/{repo}/stats/code_frequency`  |
 
 ---
 

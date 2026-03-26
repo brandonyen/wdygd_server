@@ -16,12 +16,22 @@ async function testHandler() {
 
   if (!token || token === "your_github_token_here") {
     console.error("Error: GITHUB_TOKEN not set in .env file");
-    console.error("Update the .env file in the project root with your GitHub token");
-    console.error("\nUsage: npx ts-node test-local.ts [owner] [repo] [days|startDate] [endDate]");
+    console.error(
+      "Update the .env file in the project root with your GitHub token",
+    );
+    console.error(
+      "\nUsage: npx ts-node test-local.ts [owner] [repo] [days|startDate] [endDate]",
+    );
     console.error("Examples:");
-    console.error("  npx ts-node test-local.ts facebook react           # last 7 days");
-    console.error("  npx ts-node test-local.ts facebook react 30        # last 30 days");
-    console.error("  npx ts-node test-local.ts facebook react 2024-03-01 2024-03-07  # custom range");
+    console.error(
+      "  npx ts-node test-local.ts facebook react           # last 7 days",
+    );
+    console.error(
+      "  npx ts-node test-local.ts facebook react 30        # last 30 days",
+    );
+    console.error(
+      "  npx ts-node test-local.ts facebook react 2024-03-01 2024-03-07  # custom range",
+    );
     process.exit(1);
   }
 
@@ -60,7 +70,9 @@ async function testHandler() {
   } as APIGatewayProxyEvent;
 
   console.log(`Testing GitHub Lambda for ${owner}/${repo}...`);
-  console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}\n`);
+  console.log(
+    `Date range: ${startDate.toISOString()} to ${endDate.toISOString()}\n`,
+  );
 
   const result = await handler(testEvent);
 
