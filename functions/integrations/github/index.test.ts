@@ -62,7 +62,9 @@ describe("GitHub Integration Lambda", () => {
     const result = await handler(event);
 
     expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).error).toBe("startDate must be before endDate");
+    expect(JSON.parse(result.body).error).toBe(
+      "startDate must be before endDate",
+    );
   });
 
   it("should fetch and return GitHub data successfully", async () => {

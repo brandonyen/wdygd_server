@@ -94,7 +94,7 @@ const GITHUB_API_BASE = "https://api.github.com";
 async function githubFetch<T>(
   endpoint: string,
   token: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
 ): Promise<T> {
   const url = new URL(`${GITHUB_API_BASE}${endpoint}`);
   if (params) {
@@ -114,7 +114,7 @@ async function githubFetch<T>(
   if (!response.ok) {
     const errorBody = await response.text();
     throw new Error(
-      `GitHub API error: ${response.status} ${response.statusText} - ${errorBody}`
+      `GitHub API error: ${response.status} ${response.statusText} - ${errorBody}`,
     );
   }
 
@@ -124,14 +124,18 @@ async function githubFetch<T>(
 async function fetchAllPages<T>(
   endpoint: string,
   token: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
 ): Promise<T[]> {
   const allItems: T[] = [];
   let page = 1;
   const perPage = 100;
 
   while (true) {
-    const pageParams = { ...params, page: String(page), per_page: String(perPage) };
+    const pageParams = {
+      ...params,
+      page: String(page),
+      per_page: String(perPage),
+    };
     const items = await githubFetch<T[]>(endpoint, token, pageParams);
 
     if (items.length === 0) break;
@@ -154,7 +158,7 @@ async function fetchCommits(
   repo: string,
   token: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<GitHubCommit[]> {
   interface GitHubCommitResponse {
     sha: string;
@@ -171,7 +175,7 @@ async function fetchCommits(
   const commits = await fetchAllPages<GitHubCommitResponse>(
     `/repos/${owner}/${repo}/commits`,
     token,
-    { since: startDate, until: endDate }
+    { since: startDate, until: endDate },
   );
 
   return commits.map((commit) => ({
@@ -188,7 +192,7 @@ async function fetchPullRequests(
   repo: string,
   token: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<GitHubPullRequest[]> {
   interface GitHubPRResponse {
     number: number;
@@ -209,16 +213,16 @@ async function fetchPullRequests(
 
   // Fetch all PRs (both open and closed) to filter by date range
   const [openPRs, closedPRs] = await Promise.all([
-    fetchAllPages<GitHubPRResponse>(
-      `/repos/${owner}/${repo}/pulls`,
-      token,
-      { state: "open", sort: "updated", direction: "desc" }
-    ),
-    fetchAllPages<GitHubPRResponse>(
-      `/repos/${owner}/${repo}/pulls`,
-      token,
-      { state: "closed", sort: "updated", direction: "desc" }
-    ),
+    fetchAllPages<GitHubPRResponse>(`/repos/${owner}/${repo}/pulls`, token, {
+      state: "open",
+      sort: "updated",
+      direction: "desc",
+    }),
+    fetchAllPages<GitHubPRResponse>(`/repos/${owner}/${repo}/pulls`, token, {
+      state: "closed",
+      sort: "updated",
+      direction: "desc",
+    }),
   ]);
 
   const allPRs = [...openPRs, ...closedPRs];
@@ -244,10 +248,10 @@ async function fetchPullRequests(
       }
       const reviews = await githubFetch<ReviewResponse[]>(
         `/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        token
+        token,
       );
       return { ...pr, reviewCount: reviews.length };
-    })
+    }),
   );
 
   return prsWithReviews.map((pr) => ({
@@ -271,7 +275,7 @@ async function fetchReviews(
   repo: string,
   token: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<GitHubReview[]> {
   interface GitHubReviewResponse {
     user: { login: string };
@@ -296,7 +300,7 @@ async function fetchReviews(
 
   // Filter to PRs updated within or after start date
   const relevantPRs = recentPRs.filter(
-    (pr) => new Date(pr.updated_at) >= start
+    (pr) => new Date(pr.updated_at) >= start,
   );
 
   const allReviews: GitHubReview[] = [];
@@ -304,7 +308,7 @@ async function fetchReviews(
   for (const pr of relevantPRs) {
     const reviews = await githubFetch<GitHubReviewResponse[]>(
       `/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-      token
+      token,
     );
 
     const filteredReviews = reviews
@@ -333,7 +337,7 @@ async function fetchIssues(
   repo: string,
   token: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): Promise<GitHubIssue[]> {
   interface GitHubIssueResponse {
     number: number;
@@ -353,7 +357,7 @@ async function fetchIssues(
   const issues = await fetchAllPages<GitHubIssueResponse>(
     `/repos/${owner}/${repo}/issues`,
     token,
-    { state: "all", since: startDate, sort: "updated", direction: "desc" }
+    { state: "all", since: startDate, sort: "updated", direction: "desc" },
   );
 
   // Filter out PRs (GitHub API includes PRs in issues endpoint)
@@ -394,7 +398,7 @@ const CORS_HEADERS = {
 };
 
 export async function handler(
-  event: APIGatewayProxyEvent
+  event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: CORS_HEADERS, body: "" };
@@ -437,7 +441,8 @@ export async function handler(
           statusCode: 401,
           headers: CORS_HEADERS,
           body: JSON.stringify({
-            error: "GitHub account not connected. Please authenticate via OAuth first.",
+            error:
+              "GitHub account not connected. Please authenticate via OAuth first.",
             authRequired: true,
           }),
         };
@@ -449,7 +454,8 @@ export async function handler(
         statusCode: 400,
         headers: CORS_HEADERS,
         body: JSON.stringify({
-          error: "Authentication required: provide either 'githubToken' or 'userId'",
+          error:
+            "Authentication required: provide either 'githubToken' or 'userId'",
         }),
       };
     }
@@ -483,21 +489,21 @@ export async function handler(
         params.repo,
         githubToken,
         params.startDate,
-        params.endDate
+        params.endDate,
       ),
       fetchPullRequests(
         params.owner,
         params.repo,
         githubToken,
         params.startDate,
-        params.endDate
+        params.endDate,
       ),
       fetchReviews(
         params.owner,
         params.repo,
         githubToken,
         params.startDate,
-        params.endDate
+        params.endDate,
       ),
       params.includeIssues
         ? fetchIssues(
@@ -505,7 +511,7 @@ export async function handler(
             params.repo,
             githubToken,
             params.startDate,
-            params.endDate
+            params.endDate,
           )
         : Promise.resolve(undefined),
     ]);
@@ -538,7 +544,7 @@ export async function handler(
         totalPRsMerged: pullRequests.filter((pr) => pr.state === "merged")
           .length,
         totalPRsClosed: pullRequests.filter(
-          (pr) => pr.state === "closed" && pr.closedAt
+          (pr) => pr.state === "closed" && pr.closedAt,
         ).length,
         totalReviews: reviews.length,
         ...(issues && {

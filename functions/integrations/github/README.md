@@ -5,11 +5,13 @@ Fetches GitHub repository data (commits, PRs, reviews, issues) for a date range 
 ## Setup
 
 1. Copy `.env.example` to `.env` in the project root:
+
    ```bash
    cp .env.example .env
    ```
 
 2. Add your GitHub token to `.env`:
+
    ```
    GITHUB_TOKEN=ghp_your_token_here
    ```
@@ -56,13 +58,13 @@ CORS is enabled — can be called directly from the browser/frontend.
 
 ```json
 {
-  "githubToken": "ghp_xxx",      // Option 1: Direct token
-  "userId": "user123",           // Option 2: OAuth user lookup (use one or the other)
+  "githubToken": "ghp_xxx", // Option 1: Direct token
+  "userId": "user123", // Option 2: OAuth user lookup (use one or the other)
   "owner": "facebook",
   "repo": "react",
   "startDate": "2024-03-01T00:00:00Z",
   "endDate": "2024-03-07T23:59:59Z",
-  "includeIssues": true          // Optional, defaults to false
+  "includeIssues": true // Optional, defaults to false
 }
 ```
 
