@@ -44,7 +44,13 @@ npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_server 
 npm test -- --testPathPattern="github"
 ```
 
-## API Usage
+## Deployed Endpoint
+
+```
+POST https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github
+```
+
+CORS is enabled — can be called directly from the browser/frontend.
 
 ### Request Body
 
@@ -60,14 +66,73 @@ npm test -- --testPathPattern="github"
 }
 ```
 
+### Test with curl
+
+```bash
+curl -X POST https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github \
+  -H "Content-Type: application/json" \
+  -d '{
+    "githubToken": "ghp_yourtoken",
+    "owner": "brandonyen",
+    "repo": "wdygd_web",
+    "startDate": "2025-01-01T00:00:00Z",
+    "endDate": "2025-04-10T00:00:00Z"
+  }'
+```
+
 ### Response
 
-Returns structured data with:
-- `commits` - List of commits with sha, message, author, date, url
-- `pullRequests` - PRs with state (open/closed/merged), review count, additions/deletions
-- `reviews` - Code reviews with reviewer, state (APPROVED/CHANGES_REQUESTED/COMMENTED)
-- `issues` - Issues with labels (if `includeIssues: true`)
-- `stats` - Aggregated counts and unique contributors list
+```json
+{
+  "repository": { "owner": "brandonyen", "repo": "wdygd_web" },
+  "dateRange": { "startDate": "...", "endDate": "..." },
+  "commits": [
+    { "sha": "f683036", "message": "first commit", "author": "Brandon Yen", "date": "2026-02-06T00:50:31Z", "url": "..." }
+  ],
+  "pullRequests": [
+    { "number": 8, "title": "Main 2", "state": "open", "author": "beltemsa", "createdAt": "...", "mergedAt": null, "closedAt": null, "url": "...", "additions": 0, "deletions": 0, "changedFiles": 0, "reviewCount": 0 }
+  ],
+  "reviews": [
+    { "prNumber": 2, "prTitle": "Feature/profile", "reviewer": "beltemsa", "state": "APPROVED", "submittedAt": "...", "url": "..." }
+  ],
+  "issues": [],
+  "stats": {
+    "totalCommits": 1,
+    "totalPRsOpened": 8,
+    "totalPRsMerged": 4,
+    "totalPRsClosed": 3,
+    "totalReviews": 1,
+    "totalIssuesOpened": 0,
+    "totalIssuesClosed": 0,
+    "uniqueContributors": ["Brandon Yen", "beltemsa", "ivillanuu"]
+  }
+}
+```
+
+### Using the endpoint in the frontend
+
+```ts
+fetch("https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    githubToken: import.meta.env.VITE_GITHUB_TOKEN,
+    owner: "brandonyen",
+    repo: "wdygd_web",
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  }),
+})
+  .then((r) => r.json())
+  .then((data) => {
+    data.commits        // array of commits
+    data.pullRequests   // array of PRs
+    data.reviews        // array of reviews
+    data.stats          // totals and uniqueContributors
+  });
+```
+
+Add `VITE_GITHUB_TOKEN=ghp_yourtoken` to `wdygd_web/.env` for the frontend.
 
 ## OAuth Flow (Production)
 
