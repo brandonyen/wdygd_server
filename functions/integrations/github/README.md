@@ -89,13 +89,39 @@ curl -X POST https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github 
   "repository": { "owner": "brandonyen", "repo": "wdygd_web" },
   "dateRange": { "startDate": "...", "endDate": "..." },
   "commits": [
-    { "sha": "f683036", "message": "first commit", "author": "Brandon Yen", "date": "2026-02-06T00:50:31Z", "url": "..." }
+    {
+      "sha": "f683036",
+      "message": "first commit",
+      "author": "Brandon Yen",
+      "date": "2026-02-06T00:50:31Z",
+      "url": "..."
+    }
   ],
   "pullRequests": [
-    { "number": 8, "title": "Main 2", "state": "open", "author": "beltemsa", "createdAt": "...", "mergedAt": null, "closedAt": null, "url": "...", "additions": 0, "deletions": 0, "changedFiles": 0, "reviewCount": 0 }
+    {
+      "number": 8,
+      "title": "Main 2",
+      "state": "open",
+      "author": "beltemsa",
+      "createdAt": "...",
+      "mergedAt": null,
+      "closedAt": null,
+      "url": "...",
+      "additions": 0,
+      "deletions": 0,
+      "changedFiles": 0,
+      "reviewCount": 0
+    }
   ],
   "reviews": [
-    { "prNumber": 2, "prTitle": "Feature/profile", "reviewer": "beltemsa", "state": "APPROVED", "submittedAt": "...", "url": "..." }
+    {
+      "prNumber": 2,
+      "prTitle": "Feature/profile",
+      "reviewer": "beltemsa",
+      "state": "APPROVED",
+      "submittedAt": "...",
+      "url": "..."
+    }
   ],
   "issues": [],
   "stats": {
@@ -127,10 +153,10 @@ fetch("https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github", {
 })
   .then((r) => r.json())
   .then((data) => {
-    data.commits        // array of commits
-    data.pullRequests   // array of PRs
-    data.reviews        // array of reviews
-    data.stats          // totals and uniqueContributors
+    data.commits; // array of commits
+    data.pullRequests; // array of PRs
+    data.reviews; // array of reviews
+    data.stats; // totals and uniqueContributors
   });
 ```
 
