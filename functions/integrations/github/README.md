@@ -1,50 +1,6 @@
-# GitHub Integration Lambda
+# GitHub Integration
 
-Fetches GitHub repository data (commits, PRs, reviews, issues) for a date range to generate LLM summaries.
-
-## Setup
-
-1. Copy `.env.example` to `.env` in the project root:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Add your GitHub token to `.env`:
-
-   ```
-   GITHUB_TOKEN=ghp_your_token_here
-   ```
-
-   Get a token at: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-   Required scopes: `repo`, `read:user`
-
-## Testing Locally
-
-```bash
-# Usage: npx ts-node test-local.ts [owner] [repo] [days|startDate] [endDate]
-
-# Default (facebook/react, last 7 days)
-npx ts-node functions/integrations/github/test-local.ts
-
-# Custom repo (last 7 days)
-npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_server
-
-# Custom number of days
-npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_server 30
-
-# Custom date range
-npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_server 2024-03-01 2024-03-07
-
-# From a specific start date to now
-npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_server 2024-03-01
-```
-
-## Running Unit Tests
-
-```bash
-npm test -- --testPathPattern="github"
-```
+Fetches commits, PRs, reviews, and issues for a date range.
 
 ## Deployed Endpoint
 
@@ -52,131 +8,91 @@ npm test -- --testPathPattern="github"
 POST https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github
 ```
 
-CORS is enabled — can be called directly from the browser/frontend.
+## API Usage
 
-### Request Body
+### With a direct token (current)
 
 ```json
 {
-  "githubToken": "ghp_xxx", // Option 1: Direct token
-  "userId": "user123", // Option 2: OAuth user lookup (use one or the other)
-  "owner": "facebook",
-  "repo": "react",
-  "startDate": "2024-03-01T00:00:00Z",
-  "endDate": "2024-03-07T23:59:59Z",
-  "includeIssues": true // Optional, defaults to false
+  "githubToken": "ghp_xxx",
+  "owner": "brandonyen",
+  "repo": "wdygd_web",
+  "startDate": "2026-01-01T00:00:00Z",
+  "endDate": "2026-04-11T00:00:00Z",
+  "includeIssues": true
 }
 ```
 
-### Test with curl
-
-```bash
-curl -X POST https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github \
-  -H "Content-Type: application/json" \
-  -d '{
-    "githubToken": "ghp_yourtoken",
-    "owner": "brandonyen",
-    "repo": "wdygd_web",
-    "startDate": "2025-01-01T00:00:00Z",
-    "endDate": "2025-04-10T00:00:00Z"
-  }'
-```
-
-### Response
+### With OAuth (after setup)
 
 ```json
 {
-  "repository": { "owner": "brandonyen", "repo": "wdygd_web" },
-  "dateRange": { "startDate": "...", "endDate": "..." },
-  "commits": [
-    {
-      "sha": "f683036",
-      "message": "first commit",
-      "author": "Brandon Yen",
-      "date": "2026-02-06T00:50:31Z",
-      "url": "..."
-    }
-  ],
-  "pullRequests": [
-    {
-      "number": 8,
-      "title": "Main 2",
-      "state": "open",
-      "author": "beltemsa",
-      "createdAt": "...",
-      "mergedAt": null,
-      "closedAt": null,
-      "url": "...",
-      "additions": 0,
-      "deletions": 0,
-      "changedFiles": 0,
-      "reviewCount": 0
-    }
-  ],
-  "reviews": [
-    {
-      "prNumber": 2,
-      "prTitle": "Feature/profile",
-      "reviewer": "beltemsa",
-      "state": "APPROVED",
-      "submittedAt": "...",
-      "url": "..."
-    }
-  ],
-  "issues": [],
+  "userId": "user123",
+  "owner": "brandonyen",
+  "repo": "wdygd_web",
+  "startDate": "2026-01-01T00:00:00Z",
+  "endDate": "2026-04-11T00:00:00Z"
+}
+```
+
+### Response shape
+
+```json
+{
+  "commits":      [{ "sha", "message", "author", "date", "url" }],
+  "pullRequests": [{ "number", "title", "state", "author", "createdAt", "mergedAt", "closedAt", "url", "additions", "deletions", "changedFiles", "reviewCount" }],
+  "reviews":      [{ "prNumber", "prTitle", "reviewer", "state", "submittedAt", "url" }],
+  "issues":       [{ "number", "title", "state", "author", "createdAt", "closedAt", "url", "labels" }],
   "stats": {
-    "totalCommits": 1,
-    "totalPRsOpened": 8,
-    "totalPRsMerged": 4,
-    "totalPRsClosed": 3,
-    "totalReviews": 1,
-    "totalIssuesOpened": 0,
-    "totalIssuesClosed": 0,
-    "uniqueContributors": ["Brandon Yen", "beltemsa", "ivillanuu"]
+    "totalCommits", "totalPRsOpened", "totalPRsMerged", "totalPRsClosed",
+    "totalReviews", "totalIssuesOpened", "totalIssuesClosed", "uniqueContributors"
   }
 }
 ```
 
-### Using the endpoint in the frontend
+## OAuth Setup
 
-```ts
-fetch("https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/github", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    githubToken: import.meta.env.VITE_GITHUB_TOKEN,
-    owner: "brandonyen",
-    repo: "wdygd_web",
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-  }),
-})
-  .then((r) => r.json())
-  .then((data) => {
-    data.commits; // array of commits
-    data.pullRequests; // array of PRs
-    data.reviews; // array of reviews
-    data.stats; // totals and uniqueContributors
-  });
-```
+### 1. Register a GitHub OAuth App
 
-Add `VITE_GITHUB_TOKEN=ghp_yourtoken` to `wdygd_web/.env` for the frontend.
+GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
 
-## OAuth Flow (Production)
+- **Callback URL:** `https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/oauth/github/callback`
 
-For customer-facing use, the OAuth flow stores tokens so users don't need to provide them:
+Copy the **Client ID** and **Client Secret**.
 
-1. **Connect GitHub**: Redirect user to `GET /auth/github?userId=xxx&redirectUrl=https://yourapp.com/callback`
-2. **Check Status**: `GET /auth/github/status?userId=xxx`
-3. **Fetch Data**: Use `userId` instead of `githubToken` in requests
-4. **Disconnect**: `DELETE /auth/github?userId=xxx`
-
-### Environment Variables for OAuth
+### 2. Set environment variables
 
 ```
-GITHUB_CLIENT_ID=your_oauth_app_client_id
-GITHUB_CLIENT_SECRET=your_oauth_app_client_secret
-GITHUB_REDIRECT_URI=https://your-api.com/auth/github/callback
+GITHUB_CLIENT_ID=Iv1.abc123
+GITHUB_CLIENT_SECRET=secret123
+GITHUB_REDIRECT_URI=https://28gthv6fu1.execute-api.us-east-1.amazonaws.com/prod/oauth/github/callback
 ```
 
-Create an OAuth App at: GitHub → Settings → Developer settings → OAuth Apps
+### 3. Add OAuth routes to the CDK stack
+
+| Method   | Path                     | Purpose                    |
+| -------- | ------------------------ | -------------------------- |
+| `GET`    | `/oauth/github`          | Start OAuth flow           |
+| `GET`    | `/oauth/github/callback` | GitHub redirects here      |
+| `GET`    | `/oauth/github/status`   | Check if user is connected |
+| `DELETE` | `/oauth/github`          | Disconnect account         |
+
+### 4. Replace token store with DynamoDB
+
+The current store uses `/tmp` (local only). For Lambda persistence, implement `dynamoDBStore` in `token-store.ts` and set `TOKEN_STORE_TYPE=dynamodb`.
+
+### 5. User flow
+
+```
+GET /oauth/github?userId=user123&redirectUrl=https://yourapp.com/callback
+→ user authorizes on GitHub
+→ GitHub redirects to callback → token stored under userId
+→ use userId in API requests instead of githubToken
+```
+
+## Local Testing
+
+```bash
+# Requires GITHUB_TOKEN in .env at project root
+npx ts-node functions/integrations/github/test-local.ts brandonyen wdygd_web 7
+```
