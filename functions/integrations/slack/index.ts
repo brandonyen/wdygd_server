@@ -66,7 +66,8 @@ async function fetchChannelMessages(
               });
             }
 
-            replyCursor = threadResult.response_metadata?.next_cursor || undefined;
+            replyCursor =
+              threadResult.response_metadata?.next_cursor || undefined;
           } catch (e) {
             console.warn(`Skipping remaining thread ${msg.ts} due to error`, e);
             break;
