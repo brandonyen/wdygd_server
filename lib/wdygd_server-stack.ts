@@ -88,6 +88,9 @@ export class WdygdServerStack extends cdk.Stack {
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_22_X,
       timeout: cdk.Duration.seconds(300),
+      environment: {
+        ...defaultEnvironment,
+      },
     });
 
     // --- Slack OAuth: /oauth/slack/initiate ---
