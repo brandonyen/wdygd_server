@@ -69,17 +69,75 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    // --- API Gateway (shared across all routes) ---
-    // LambdaRestApi creates a {proxy+} catch-all to fn.
-    // Specific resources added below take precedence over the proxy.
     const endpoint = new apigw.LambdaRestApi(this, "BackendApiGwEndpoint", {
       handler: fn,
       restApiName: "BackendApi",
       proxy: false,
     });
 
+    // Catch-all proxy to backend lambda for all non-OAuth routes
+    endpoint.root.addMethod("ANY", new apigw.LambdaIntegration(fn));
+    endpoint.root
+      .addResource("{proxy+}")
+      .addMethod("ANY", new apigw.LambdaIntegration(fn));
+
+    // --- Slack OAuth: /oauth/slack/initiate ---
+    const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackOAuthInitiateFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/initiate.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        environment: {
+          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
+          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
+          STATE_SECRET: process.env.STATE_SECRET ?? "",
+        },
+      },
+    );
+
+    // --- Slack OAuth: /oauth/slack/callback ---
+    const slackOAuthCallbackFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackOAuthCallbackFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/callback.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        environment: {
+          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
+          SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET ?? "",
+          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
+          STATE_SECRET: process.env.STATE_SECRET ?? "",
+          SUPABASE_URL: process.env.SUPABASE_URL ?? "",
+          SUPABASE_SERVICE_ROLE_KEY:
+            process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+          FRONTEND_URL: process.env.FRONTEND_URL ?? "",
+        },
+      },
+    );
+
+    // Routes: GET /oauth/slack/initiate and GET /oauth/slack/callback
+    const oauthResource = endpoint.root.addResource("oauth");
+    const slackOAuthResource = oauthResource.addResource("slack");
+    slackOAuthResource
+      .addResource("initiate")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthInitiateFn));
+    slackOAuthResource
+      .addResource("callback")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
+
     // --- Slack data-fetch lambda (invoked internally / on schedule) ---
-    new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
+    const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
       entry: path.join(
         __dirname,
         "..",
@@ -93,63 +151,6 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    // --- Slack OAuth: /oauth/slack/initiate ---
-    // Required env vars: SLACK_CLIENT_ID, SLACK_REDIRECT_URI, STATE_SECRET
-    const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackOAuthInitiateFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/initiate.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_22_X,
-        environment: {
-          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
-          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
-          STATE_SECRET: process.env.STATE_SECRET ?? "",
-        },
-      },
-    );
-
-    // --- Slack OAuth: /oauth/slack/callback ---
-    // Required env vars: SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_REDIRECT_URI,
-    //                    STATE_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FRONTEND_URL
-    const slackOAuthCallbackFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackOAuthCallbackFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/callback.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_22_X,
-        environment: {
-          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
-          SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET ?? "",
-          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
-          STATE_SECRET: process.env.STATE_SECRET ?? "",
-          SUPABASE_URL: process.env.SUPABASE_URL ?? "",
-          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-          FRONTEND_URL: process.env.FRONTEND_URL ?? "",
-        },
-      },
-    );
-
-    // Route: GET /oauth/slack/initiate  →  slackOAuthInitiateFn
-    // Route: GET /oauth/slack/callback  →  slackOAuthCallbackFn
-    const oauthResource = endpoint.root.addResource("oauth");
-    const slackOAuthResource = oauthResource.addResource("slack");
-    slackOAuthResource
-      .addResource("initiate")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthInitiateFn));
-    slackOAuthResource
-      .addResource("callback")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
       schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
@@ -253,6 +254,12 @@ export class WdygdServerStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
       value: slackFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackOAuthInitiateArn", {
+      value: slackOAuthInitiateFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackOAuthCallbackArn", {
+      value: slackOAuthCallbackFn.functionArn,
     });
   }
 }
