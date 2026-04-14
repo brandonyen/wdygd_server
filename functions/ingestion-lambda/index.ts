@@ -1,6 +1,6 @@
 exports.handler = async (event: any) => {
   console.log("Ingestion triggered with records:", event.Records.length);
-  
+
   for (const record of event.Records) {
     const payload = JSON.parse(record.body);
     console.log("Processing ingestion for user:", payload.userId);

@@ -2,6 +2,7 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -41,10 +42,14 @@ export class WdygdServerStack extends cdk.Stack {
       });
     }
 
-    const userPoolClient = new cognito.UserPoolClient(this, "WdygdUserPoolClient", {
-      userPool,
-      generateSecret: false,
-    });
+    const userPoolClient = new cognito.UserPoolClient(
+      this,
+      "WdygdUserPoolClient",
+      {
+        userPool,
+        generateSecret: false,
+      },
+    );
 
     // Environment Variables (Supabase credentials)
     const defaultEnvironment = {
@@ -67,6 +72,20 @@ export class WdygdServerStack extends cdk.Stack {
     const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
       handler: fn,
       restApiName: `BackendApi`,
+    });
+
+    const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/slack/index.ts",
+      ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(300),
+      environment: {
+        ...defaultEnvironment,
+      },
     });
 
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
@@ -143,10 +162,12 @@ export class WdygdServerStack extends cdk.Stack {
     summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
 
     // Grant Summary Lambda permissions to invoke Bedrock
-    summaryLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["bedrock:InvokeModel"],
-      resources: ["*"],
-    }));
+    summaryLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
 
     // Outputs
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
@@ -156,7 +177,9 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "IngestionQueueUrl", {
       value: ingestionQueue.queueUrl,
     });
-    new cdk.CfnOutput(this, "SummaryQueueUrl", { value: summaryQueue.queueUrl });
+    new cdk.CfnOutput(this, "SummaryQueueUrl", {
+      value: summaryQueue.queueUrl,
+    });
     new cdk.CfnOutput(this, "SchedulerLambdaArn", {
       value: schedulerLambda.functionArn,
     });
@@ -165,6 +188,9 @@ export class WdygdServerStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "SummaryLambdaArn", {
       value: summaryLambda.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
+      value: slackFn.functionArn,
     });
   }
 }
