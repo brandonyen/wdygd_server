@@ -1,10 +1,12 @@
 import { WebClient } from "@slack/web-api";
+import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 interface SlackEvent {
   startDate: string;
   endDate: string;
-  accessToken: string;
-  targetUserId: string;
+  userId: string;
+  integrationId: string;
 }
 
 interface MessageInfo {
@@ -89,15 +91,45 @@ async function fetchChannelMessages(
   return messages;
 }
 
-// need to remove accessToken from logs and error messages to avoid leaking it
 export const handler = async (event: SlackEvent) => {
-  const { startDate, endDate, accessToken, targetUserId } = event;
+  const { startDate, endDate, userId, integrationId } = event;
 
-  if (!accessToken) {
-    throw new Error("Missing accessToken in event payload");
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      "Missing SUPABASE_URL or SUPABASE_KEY environment variables",
+    );
   }
 
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Fetch access token from IntegrationConnection table
+  const { data: integration, error: integrationError } = await supabase
+    .from("IntegrationConnection")
+    .select("access_token")
+    .eq("integration_id", integrationId)
+    .eq("user_id", userId)
+    .single();
+
+  if (integrationError || !integration?.access_token) {
+    throw new Error(
+      `Failed to fetch integration credentials: ${integrationError?.message}`,
+    );
+  }
+
+  const accessToken = integration.access_token;
   const client = new WebClient(accessToken);
+
+  // Get the Slack user ID associated with this token
+  const authInfo = await client.auth.test();
+  const targetUserId = authInfo.user_id;
+
+  if (!targetUserId) {
+    throw new Error("Failed to resolve Slack user ID from access token");
+  }
+
   const oldest = (new Date(startDate).getTime() / 1000).toString();
   const latest = (new Date(endDate).getTime() / 1000).toString();
 
@@ -180,6 +212,38 @@ export const handler = async (event: SlackEvent) => {
         })),
       })),
     }));
+
+    // Write one ActivityEvent per channel to Supabase
+    const now = new Date().toISOString();
+    const activityEvents = enrichedChannels.map((channel) => ({
+      event_id: randomUUID(),
+      user_id: userId,
+      integration_id: integrationId,
+      timestamp: now,
+      payload: {
+        dateRange: { start: startDate, end: endDate },
+        channelId: channel.channelId,
+        channelName: channel.channelName,
+        messages: channel.messages,
+      },
+    }));
+
+    if (activityEvents.length > 0) {
+      const { error: insertError } = await supabase
+        .from("ActivityEvent")
+        .insert(activityEvents);
+
+      if (insertError) {
+        console.error("Failed to write activity events to DB:", insertError);
+        throw new Error(`DB insert failed: ${insertError.message}`);
+      }
+
+      console.log(`Wrote ${activityEvents.length} activity events to DB`);
+    } else {
+      console.log(
+        "No activity events to write (user had no messages in range)",
+      );
+    }
 
     return {
       statusCode: 200,
