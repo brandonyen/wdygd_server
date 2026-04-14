@@ -86,7 +86,7 @@ export class WdygdServerStack extends cdk.Stack {
         "functions/integrations/slack/index.ts",
       ),
       handler: "handler",
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
       environment: {
         ...defaultEnvironment,
