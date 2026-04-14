@@ -80,7 +80,7 @@ export const handler = async (event: any) => {
     }),
   });
 
-  const tokenData = await tokenRes.json() as {
+  const tokenData = (await tokenRes.json()) as {
     ok: boolean;
     error?: string;
     authed_user: {
@@ -125,7 +125,11 @@ export const handler = async (event: any) => {
     // Update the existing connection with the fresh token
     const { error: updateError } = await supabase
       .from("IntegrationConnection")
-      .update({ access_token: accessToken, refresh_token: refreshToken, token_expiration: tokenExpiration })
+      .update({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_expiration: tokenExpiration,
+      })
       .eq("integration_id", existing.integration_id);
 
     if (updateError) {
