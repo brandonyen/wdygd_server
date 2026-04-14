@@ -42,10 +42,14 @@ export class WdygdServerStack extends cdk.Stack {
       });
     }
 
-    const userPoolClient = new cognito.UserPoolClient(this, "WdygdUserPoolClient", {
-      userPool,
-      generateSecret: false,
-    });
+    const userPoolClient = new cognito.UserPoolClient(
+      this,
+      "WdygdUserPoolClient",
+      {
+        userPool,
+        generateSecret: false,
+      },
+    );
 
     // Environment Variables (Supabase credentials)
     const defaultEnvironment = {
@@ -217,10 +221,12 @@ export class WdygdServerStack extends cdk.Stack {
     summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
 
     // Grant Summary Lambda permissions to invoke Bedrock
-    summaryLambda.addToRolePolicy(new iam.PolicyStatement({
-      actions: ["bedrock:InvokeModel"],
-      resources: ["*"],
-    }));
+    summaryLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
 
     // Outputs
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
@@ -230,7 +236,9 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "IngestionQueueUrl", {
       value: ingestionQueue.queueUrl,
     });
-    new cdk.CfnOutput(this, "SummaryQueueUrl", { value: summaryQueue.queueUrl });
+    new cdk.CfnOutput(this, "SummaryQueueUrl", {
+      value: summaryQueue.queueUrl,
+    });
     new cdk.CfnOutput(this, "SchedulerLambdaArn", {
       value: schedulerLambda.functionArn,
     });
@@ -239,6 +247,9 @@ export class WdygdServerStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "SummaryLambdaArn", {
       value: summaryLambda.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
+      value: slackFn.functionArn,
     });
   }
 }
