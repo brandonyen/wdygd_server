@@ -180,7 +180,7 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
   resources: ["*"],
 }));
 
-// Create User Config Lambda
+    // Create User Config Lambda
     const createUserConfigLambda = new lambdaNode.NodejsFunction(
       this,
       "CreateUserConfigLambda",
@@ -195,6 +195,9 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
         timeout: cdk.Duration.seconds(300),
         environment: {
           ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
         },
       },
     );
