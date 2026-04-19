@@ -1,5 +1,6 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { getTokenStore, type StoredToken } from "./token-store.js";
+// Note: StoredToken no longer includes githubUsername/githubUserId (stored in IntegrationConnection table)
 
 // ============================================================================
 // Types
@@ -172,11 +173,9 @@ async function handleCallback(
   const tokenStore = getTokenStore();
   const storedToken: StoredToken = {
     accessToken: tokenData.access_token,
-    tokenType: tokenData.token_type,
-    scope: tokenData.scope,
+    refreshToken: null, // GitHub OAuth apps don't issue refresh tokens
+    tokenExpiration: null,
     createdAt: new Date().toISOString(),
-    githubUserId: userData.id,
-    githubUsername: userData.login,
   };
 
   await tokenStore.saveToken(stateData.userId, storedToken);
@@ -241,9 +240,8 @@ async function handleStatus(
     statusCode: 200,
     body: JSON.stringify({
       connected: true,
-      githubUsername: token.githubUsername,
       connectedAt: token.createdAt,
-      scopes: token.scope.split(","),
+      tokenExpiration: token.tokenExpiration,
     }),
   };
 }

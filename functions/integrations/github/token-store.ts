@@ -1,18 +1,12 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
-
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface StoredToken {
   accessToken: string;
-  tokenType: string;
-  scope: string;
+  refreshToken: string | null;
+  tokenExpiration: string | null;
   createdAt: string;
-  // GitHub user info
-  githubUserId: number;
-  githubUsername: string;
 }
 
 export interface TokenStore {
@@ -22,67 +16,127 @@ export interface TokenStore {
 }
 
 // ============================================================================
-// Local File Store (Development Only)
+// Supabase Store (IntegrationConnection table)
 // ============================================================================
 
-const LOCAL_STORE_PATH = path.join("/tmp", "github-tokens.json");
+interface IntegrationConnectionRow {
+  integration_id: string;
+  user_id: string;
+  provider: string;
+  access_token: string;
+  refresh_token: string | null;
+  token_expiration: string | null;
+  created_at?: string;
+}
 
-function readLocalStore(): Record<string, StoredToken> {
-  try {
-    if (fs.existsSync(LOCAL_STORE_PATH)) {
-      const data = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
-      return JSON.parse(data);
-    }
-  } catch {
-    // Ignore errors, return empty store
+function getSupabaseStore(): TokenStore {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing required environment variables: SUPABASE_URL, SUPABASE_KEY");
   }
-  return {};
+
+  const baseUrl = `${supabaseUrl}/rest/v1/IntegrationConnection`;
+  const headers: Record<string, string> = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+    "Content-Type": "application/json",
+  };
+
+  return {
+    async getToken(userId: string): Promise<StoredToken | null> {
+      const res = await fetch(
+        `${baseUrl}?user_id=eq.${encodeURIComponent(userId)}&provider=eq.GITHUB&select=*`,
+        { headers },
+      );
+
+      if (!res.ok) {
+        throw new Error(`Supabase query failed: ${res.status} ${await res.text()}`);
+      }
+
+      const rows: IntegrationConnectionRow[] = await res.json();
+      if (rows.length === 0) return null;
+
+      const row = rows[0];
+      return {
+        accessToken: row.access_token,
+        refreshToken: row.refresh_token,
+        tokenExpiration: row.token_expiration,
+        createdAt: row.created_at ?? new Date().toISOString(),
+      };
+    },
+
+    async saveToken(userId: string, token: StoredToken): Promise<void> {
+      // Check if a GitHub connection already exists for this user
+      const checkRes = await fetch(
+        `${baseUrl}?user_id=eq.${encodeURIComponent(userId)}&provider=eq.GITHUB&select=integration_id`,
+        { headers },
+      );
+
+      if (!checkRes.ok) {
+        throw new Error(`Supabase query failed: ${checkRes.status} ${await checkRes.text()}`);
+      }
+
+      const existing: { integration_id: string }[] = await checkRes.json();
+
+      if (existing.length > 0) {
+        // Update existing row
+        const integrationId = existing[0].integration_id;
+        const updateRes = await fetch(
+          `${baseUrl}?integration_id=eq.${encodeURIComponent(integrationId)}`,
+          {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({
+              access_token: token.accessToken,
+              refresh_token: token.refreshToken,
+              token_expiration: token.tokenExpiration,
+            }),
+          },
+        );
+
+        if (!updateRes.ok) {
+          throw new Error(`Supabase update failed: ${updateRes.status} ${await updateRes.text()}`);
+        }
+      } else {
+        // Insert new row
+        const insertRes = await fetch(baseUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            integration_id: crypto.randomUUID(),
+            user_id: userId,
+            provider: "GITHUB",
+            access_token: token.accessToken,
+            refresh_token: token.refreshToken,
+            token_expiration: token.tokenExpiration,
+          }),
+        });
+
+        if (!insertRes.ok) {
+          throw new Error(`Supabase insert failed: ${insertRes.status} ${await insertRes.text()}`);
+        }
+      }
+    },
+
+    async deleteToken(userId: string): Promise<void> {
+      const res = await fetch(
+        `${baseUrl}?user_id=eq.${encodeURIComponent(userId)}&provider=eq.GITHUB`,
+        { method: "DELETE", headers },
+      );
+
+      if (!res.ok) {
+        throw new Error(`Supabase delete failed: ${res.status} ${await res.text()}`);
+      }
+    },
+  };
 }
-
-function writeLocalStore(store: Record<string, StoredToken>): void {
-  fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(store, null, 2));
-}
-
-export const localFileStore: TokenStore = {
-  async getToken(userId: string): Promise<StoredToken | null> {
-    const store = readLocalStore();
-    return store[userId] || null;
-  },
-
-  async saveToken(userId: string, token: StoredToken): Promise<void> {
-    const store = readLocalStore();
-    store[userId] = token;
-    writeLocalStore(store);
-  },
-
-  async deleteToken(userId: string): Promise<void> {
-    const store = readLocalStore();
-    delete store[userId];
-    writeLocalStore(store);
-  },
-};
-
-// ============================================================================
-// DynamoDB Store (Production - Placeholder)
-// ============================================================================
-
-// TODO: Implement DynamoDB store when ready
-// export const dynamoDBStore: TokenStore = { ... }
 
 // ============================================================================
 // Default Export
 // ============================================================================
 
-// Use environment variable to switch stores
 export function getTokenStore(): TokenStore {
-  const storeType = process.env.TOKEN_STORE_TYPE || "local";
-
-  switch (storeType) {
-    case "dynamodb":
-      // return dynamoDBStore;
-      throw new Error("DynamoDB store not implemented yet");
-    case "local":
-    default:
-      return localFileStore;
-  }
+  return getSupabaseStore();
 }
