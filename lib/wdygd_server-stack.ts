@@ -78,10 +78,15 @@ export class WdygdServerStack extends cdk.Stack {
     });
 
 
-    const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
-      handler: fn,
+    const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
       restApiName: `BackendApi`,
+      defaultIntegration: new apigw.LambdaIntegration(fn),
     });
+
+    // Add catch-all routes to mimic previous LambdaRestApi behavior
+    endpoint.root.addMethod("ANY");
+    const proxyResource = endpoint.root.addResource("{proxy+}");
+    proxyResource.addMethod("ANY");
 
     const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
       entry: path.join(
