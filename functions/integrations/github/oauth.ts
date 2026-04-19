@@ -287,19 +287,25 @@ export async function handler(
 
     // Route based on path and method
     if (path.endsWith("/callback") && method === "GET") {
-      return handleCallback(event);
+      const res = await handleCallback(event);
+      return { ...res, headers: res.headers };
     }
 
     if (path.endsWith("/status") && method === "GET") {
-      return handleStatus(event);
+      const res = await handleStatus(event);
+      return { ...res, headers: res.headers };
     }
 
     if (method === "DELETE") {
-      return handleDisconnect(event);
+      const res = await handleDisconnect(event);
+      return { ...res, headers: res.headers };
     }
 
     if (method === "GET") {
-      return handleInitiate(event);
+      const res = await handleInitiate(event);
+      // Initiate uses a 302 redirect, so we must not override the Location header
+      // if it exists, but we can add CORS
+      return { ...res, headers: { ...res.headers } };
     }
 
     return {

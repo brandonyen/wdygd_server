@@ -390,26 +390,14 @@ async function fetchIssues(
 // Main Handler
 // ============================================================================
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization",
-  "Access-Control-Allow-Methods": "POST,OPTIONS",
-  "Content-Type": "application/json",
-};
-
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers: CORS_HEADERS, body: "" };
-  }
-
   try {
     // Parse request body
     if (!event.body) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({ error: "Request body is required" }),
       };
     }
@@ -420,7 +408,6 @@ export async function handler(
     if (!params.owner || !params.repo || !params.startDate || !params.endDate) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "Missing required fields: owner, repo, startDate, endDate",
         }),
@@ -439,7 +426,6 @@ export async function handler(
       if (!storedToken) {
         return {
           statusCode: 401,
-          headers: CORS_HEADERS,
           body: JSON.stringify({
             error:
               "GitHub account not connected. Please authenticate via OAuth first.",
@@ -452,7 +438,6 @@ export async function handler(
     } else {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({
           error:
             "Authentication required: provide either 'githubToken' or 'userId'",
@@ -467,7 +452,6 @@ export async function handler(
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "Invalid date format. Use ISO 8601 format.",
         }),
@@ -477,7 +461,6 @@ export async function handler(
     if (startDate > endDate) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
         body: JSON.stringify({ error: "startDate must be before endDate" }),
       };
     }
@@ -560,7 +543,6 @@ export async function handler(
 
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
       body: JSON.stringify(summaryData, null, 2),
     };
   } catch (error) {
@@ -571,7 +553,6 @@ export async function handler(
 
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
       body: JSON.stringify({ error: errorMessage }),
     };
   }

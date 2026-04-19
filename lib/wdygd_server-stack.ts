@@ -114,11 +114,6 @@ export class WdygdServerStack extends cdk.Stack {
     const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
       restApiName: `BackendApi`,
       defaultIntegration: new apigw.LambdaIntegration(fn),
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
-        allowMethods: apigw.Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"],
-      },
     });
 
     // Add catch-all routes to mimic previous LambdaRestApi behavior
@@ -136,7 +131,7 @@ export class WdygdServerStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
       bundling: {
-        externalModules: ["@aws-sdk/*", "@slack/web-api", "@supabase/supabase-js"],
+        externalModules: ["@aws-sdk/*"],
       },
       environment: {
         ...defaultEnvironment,
@@ -250,7 +245,7 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(300),
         bundling: {
-          externalModules: ["@aws-sdk/*", "@supabase/supabase-js"],
+          externalModules: ["@aws-sdk/*"],
         },
         environment: {
           ...defaultEnvironment,
@@ -286,7 +281,7 @@ export class WdygdServerStack extends cdk.Stack {
           ...defaultEnvironment,
         },
         bundling: {
-          externalModules: ["@aws-sdk/*", "@supabase/supabase-js"],
+          externalModules: ["@aws-sdk/*"],
         },
       },
     );

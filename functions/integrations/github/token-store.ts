@@ -55,7 +55,7 @@ function getSupabaseStore(): TokenStore {
         throw new Error(`Supabase query failed: ${res.status} ${await res.text()}`);
       }
 
-      const rows: IntegrationConnectionRow[] = await res.json();
+      const rows = (await res.json()) as IntegrationConnectionRow[];
       if (rows.length === 0) return null;
 
       const row = rows[0];
@@ -78,7 +78,7 @@ function getSupabaseStore(): TokenStore {
         throw new Error(`Supabase query failed: ${checkRes.status} ${await checkRes.text()}`);
       }
 
-      const existing: { integration_id: string }[] = await checkRes.json();
+      const existing = (await checkRes.json()) as { integration_id: string }[];
 
       if (existing.length > 0) {
         // Update existing row
