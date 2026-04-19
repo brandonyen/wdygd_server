@@ -207,6 +207,7 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
     );
 
     // Outputs
+    new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", {
       value: userPoolClient.userPoolClientId,
