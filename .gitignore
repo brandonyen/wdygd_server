@@ -8,3 +8,8 @@ test-local.ts
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# Environment variables 
+.env
+.env.local
+.env.*.local
