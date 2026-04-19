@@ -105,6 +105,11 @@ export class WdygdServerStack extends cdk.Stack {
     const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
       restApiName: `BackendApi`,
       defaultIntegration: new apigw.LambdaIntegration(fn),
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type", "Authorization"],
+      },
     });
 
     // Add catch-all routes to mimic previous LambdaRestApi behavior
