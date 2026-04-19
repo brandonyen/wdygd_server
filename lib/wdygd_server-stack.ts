@@ -2,10 +2,12 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "node:path";
@@ -50,10 +52,17 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Environment Variables (Supabase credentials)
+    // Fetch Supabase Credentials from Secrets Manager
+    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SupabaseSecret",
+      "prod/wdygd"
+    );
+
+    // Environment Variables (Supabase credentials resolved via CloudFormation dynamic references)
     const defaultEnvironment = {
-      SUPABASE_URL: process.env.SUPABASE_URL || "PLACEHOLDER_URL",
-      SUPABASE_KEY: process.env.SUPABASE_KEY || "PLACEHOLDER_KEY",
+      SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+      SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
     };
 
     const fn = new lambda.Function(this, "BackendApiFn", {
@@ -68,30 +77,30 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    const githubFn = new lambda.Function(this, "GitHubIntegrationFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/integrations/github"),
-      ),
-      timeout: cdk.Duration.seconds(30),
+
+    const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
+      restApiName: `BackendApi`,
+      defaultIntegration: new apigw.LambdaIntegration(fn),
     });
 
-    const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
-      handler: fn,
-      restApiName: `BackendApi`,
-      proxy: false,
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
-        allowMethods: apigw.Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"],
+    // Add catch-all routes to mimic previous LambdaRestApi behavior
+    endpoint.root.addMethod("ANY");
+    const proxyResource = endpoint.root.addResource("{proxy+}");
+    proxyResource.addMethod("ANY");
+
+    const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/slack/index.ts",
+      ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(300),
+      environment: {
+        ...defaultEnvironment,
       },
     });
-
-    endpoint.root.addProxy({ anyMethod: true });
-
-    const github = endpoint.root.addResource("github");
-    github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
 
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
@@ -149,32 +158,56 @@ export class WdygdServerStack extends cdk.Stack {
 
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
+// Summary Lambda
+const summaryLambda = new lambda.Function(this, "SummaryLambda", {
+  runtime: lambda.Runtime.NODEJS_LATEST,
+  handler: "index.handler",
+  code: lambda.Code.fromAsset(
+    path.join(__dirname, "..", "functions/summary-lambda"),
+  ),
+  timeout: cdk.Duration.seconds(300),
+  environment: {
+    ...defaultEnvironment,
+  },
+});
 
-    // Summary Lambda
-    const summaryLambda = new lambda.Function(this, "SummaryLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/summary-lambda"),
-      ),
-      timeout: cdk.Duration.seconds(300),
-      environment: {
-        ...defaultEnvironment,
+// Add SQS event source for Summary Lambda
+summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
+
+// Grant Summary Lambda permissions to invoke Bedrock
+summaryLambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ["bedrock:InvokeModel"],
+  resources: ["*"],
+}));
+
+// Create User Config Lambda
+    const createUserConfigLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateUserConfigLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-user-config-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...defaultEnvironment,
+        },
       },
-    });
+    );
 
-    // Add SQS event source for Summary Lambda
-    summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
-
-    // Grant Summary Lambda permissions to invoke Bedrock
-    summaryLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock:InvokeModel"],
-        resources: ["*"],
-      }),
+    // API Gateway integration for CreateUserConfigLambda
+    const userConfigResource = endpoint.root.addResource("user-config");
+    userConfigResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createUserConfigLambda),
     );
 
     // Outputs
+    new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", {
       value: userPoolClient.userPoolClientId,
@@ -194,8 +227,8 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "SummaryLambdaArn", {
       value: summaryLambda.functionArn,
     });
-    new cdk.CfnOutput(this, "GitHubApiEndpoint", {
-      value: `${endpoint.url}github`,
+    new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
+      value: slackFn.functionArn,
     });
   }
 }
