@@ -205,6 +205,11 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
       "POST",
       new apigw.LambdaIntegration(createUserConfigLambda),
     );
+    userConfigResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(createUserConfigLambda),
+    );
+
 
     // Outputs
     new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
