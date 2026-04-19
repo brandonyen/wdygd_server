@@ -226,6 +226,9 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(300),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
         environment: {
           ...defaultEnvironment,
         },
