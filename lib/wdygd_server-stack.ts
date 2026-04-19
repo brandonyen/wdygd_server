@@ -250,7 +250,7 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(300),
         bundling: {
-          externalModules: ["@aws-sdk/*"],
+          externalModules: ["@aws-sdk/*", "@supabase/supabase-js"],
         },
         environment: {
           ...defaultEnvironment,
@@ -286,7 +286,7 @@ export class WdygdServerStack extends cdk.Stack {
           ...defaultEnvironment,
         },
         bundling: {
-          externalModules: ["@aws-sdk/*"],
+          externalModules: ["@aws-sdk/*", "@supabase/supabase-js"],
         },
       },
     );
