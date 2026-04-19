@@ -78,6 +78,30 @@ export class WdygdServerStack extends cdk.Stack {
     });
 
 
+    const githubFn = new lambda.Function(this, "GitHubIntegrationFn", {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "functions/integrations/github"),
+      ),
+      timeout: cdk.Duration.seconds(30),
+    });
+
+    const githubOAuthFn = new lambda.Function(this, "GitHubOAuthFn", {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: "oauth.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "functions/integrations/github"),
+      ),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        ...defaultEnvironment,
+        GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || "",
+        GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET || "",
+        GITHUB_REDIRECT_URI: process.env.GITHUB_REDIRECT_URI || "",
+      },
+    });
+
     const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
       restApiName: `BackendApi`,
       defaultIntegration: new apigw.LambdaIntegration(fn),
@@ -102,6 +126,15 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
+    const github = endpoint.root.addResource("github");
+    github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
+
+    const auth = endpoint.root.addResource("auth");
+    const authGithub = auth.addResource("github");
+    authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub.addMethod("DELETE", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub.addResource("callback").addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub.addResource("status").addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
       schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
