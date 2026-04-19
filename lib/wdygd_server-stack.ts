@@ -59,13 +59,22 @@ export class WdygdServerStack extends cdk.Stack {
       "prod/wdygd",
     );
 
-    // Environment Variables (Supabase credentials resolved via CloudFormation dynamic references)
+    // Environment Variables resolved via CloudFormation dynamic references
     const defaultEnvironment = {
       SUPABASE_URL: supabaseSecret
         .secretValueFromJson("SUPABASE_URL")
         .unsafeUnwrap(),
       SUPABASE_KEY: supabaseSecret
         .secretValueFromJson("SUPABASE_KEY")
+        .unsafeUnwrap(),
+      GITHUB_CLIENT_ID: supabaseSecret
+        .secretValueFromJson("GITHUB_CLIENT_ID")
+        .unsafeUnwrap(),
+      GITHUB_CLIENT_SECRET: supabaseSecret
+        .secretValueFromJson("GITHUB_CLIENT_SECRET")
+        .unsafeUnwrap(),
+      GITHUB_REDIRECT_URI: supabaseSecret
+        .secretValueFromJson("GITHUB_REDIRECT_URI")
         .unsafeUnwrap(),
     };
 
@@ -99,9 +108,6 @@ export class WdygdServerStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment: {
         ...defaultEnvironment,
-        GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID || "",
-        GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET || "",
-        GITHUB_REDIRECT_URI: process.env.GITHUB_REDIRECT_URI || "",
       },
     });
 
@@ -129,6 +135,9 @@ export class WdygdServerStack extends cdk.Stack {
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*", "@slack/web-api", "@supabase/supabase-js"],
+      },
       environment: {
         ...defaultEnvironment,
       },
