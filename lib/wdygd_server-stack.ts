@@ -213,6 +213,39 @@ summaryLambda.addToRolePolicy(new iam.PolicyStatement({
       new apigw.LambdaIntegration(createUserConfigLambda),
     );
 
+    // Create Integration Connection Lambda
+    const createIntegrationConnectionLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateIntegrationConnectionLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-integration-connection-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      },
+    );
+
+    // API Gateway integration for CreateIntegrationConnectionLambda
+    const integrationConnectionResource = endpoint.root.addResource("integration-connection");
+    integrationConnectionResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+    );
+    integrationConnectionResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+    );
+
 
     // Outputs
     new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
