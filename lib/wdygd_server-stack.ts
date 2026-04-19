@@ -144,29 +144,52 @@ export class WdygdServerStack extends cdk.Stack {
 
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
+// Summary Lambda
+const summaryLambda = new lambda.Function(this, "SummaryLambda", {
+  runtime: lambda.Runtime.NODEJS_LATEST,
+  handler: "index.handler",
+  code: lambda.Code.fromAsset(
+    path.join(__dirname, "..", "functions/summary-lambda"),
+  ),
+  timeout: cdk.Duration.seconds(300),
+  environment: {
+    ...defaultEnvironment,
+  },
+});
 
-    // Summary Lambda
-    const summaryLambda = new lambda.Function(this, "SummaryLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/summary-lambda"),
-      ),
-      timeout: cdk.Duration.seconds(300),
-      environment: {
-        ...defaultEnvironment,
+// Add SQS event source for Summary Lambda
+summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
+
+// Grant Summary Lambda permissions to invoke Bedrock
+summaryLambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ["bedrock:InvokeModel"],
+  resources: ["*"],
+}));
+
+// Create User Config Lambda
+    const createUserConfigLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateUserConfigLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-user-config-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...defaultEnvironment,
+        },
       },
-    });
+    );
 
-    // Add SQS event source for Summary Lambda
-    summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
-
-    // Grant Summary Lambda permissions to invoke Bedrock
-    summaryLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock:InvokeModel"],
-        resources: ["*"],
-      }),
+    // API Gateway integration for CreateUserConfigLambda
+    const userConfigResource = endpoint.root.addResource("user-config");
+    userConfigResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createUserConfigLambda),
     );
 
     // Outputs
