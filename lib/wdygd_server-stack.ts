@@ -7,6 +7,7 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "node:path";
@@ -51,10 +52,17 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Environment Variables (Supabase credentials)
+    // Fetch Supabase Credentials from Secrets Manager
+    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SupabaseSecret",
+      "prod/wdygd"
+    );
+
+    // Environment Variables (Supabase credentials resolved via CloudFormation dynamic references)
     const defaultEnvironment = {
-      SUPABASE_URL: process.env.SUPABASE_URL || "PLACEHOLDER_URL",
-      SUPABASE_KEY: process.env.SUPABASE_KEY || "PLACEHOLDER_KEY",
+      SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+      SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
     };
 
     const fn = new lambda.Function(this, "BackendApiFn", {
@@ -68,6 +76,7 @@ export class WdygdServerStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
       },
     });
+
 
     const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
       handler: fn,
@@ -144,29 +153,52 @@ export class WdygdServerStack extends cdk.Stack {
 
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
+// Summary Lambda
+const summaryLambda = new lambda.Function(this, "SummaryLambda", {
+  runtime: lambda.Runtime.NODEJS_LATEST,
+  handler: "index.handler",
+  code: lambda.Code.fromAsset(
+    path.join(__dirname, "..", "functions/summary-lambda"),
+  ),
+  timeout: cdk.Duration.seconds(300),
+  environment: {
+    ...defaultEnvironment,
+  },
+});
 
-    // Summary Lambda
-    const summaryLambda = new lambda.Function(this, "SummaryLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/summary-lambda"),
-      ),
-      timeout: cdk.Duration.seconds(300),
-      environment: {
-        ...defaultEnvironment,
+// Add SQS event source for Summary Lambda
+summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
+
+// Grant Summary Lambda permissions to invoke Bedrock
+summaryLambda.addToRolePolicy(new iam.PolicyStatement({
+  actions: ["bedrock:InvokeModel"],
+  resources: ["*"],
+}));
+
+// Create User Config Lambda
+    const createUserConfigLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateUserConfigLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-user-config-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...defaultEnvironment,
+        },
       },
-    });
+    );
 
-    // Add SQS event source for Summary Lambda
-    summaryLambda.addEventSource(new SqsEventSource(summaryQueue));
-
-    // Grant Summary Lambda permissions to invoke Bedrock
-    summaryLambda.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock:InvokeModel"],
-        resources: ["*"],
-      }),
+    // API Gateway integration for CreateUserConfigLambda
+    const userConfigResource = endpoint.root.addResource("user-config");
+    userConfigResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createUserConfigLambda),
     );
 
     // Outputs
