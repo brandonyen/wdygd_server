@@ -7,6 +7,7 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "node:path";
@@ -51,10 +52,17 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Environment Variables (Supabase credentials)
+    // Fetch Supabase Credentials from Secrets Manager
+    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SupabaseSecret",
+      "prod/wdygd"
+    );
+
+    // Environment Variables (Supabase credentials resolved via CloudFormation dynamic references)
     const defaultEnvironment = {
-      SUPABASE_URL: process.env.SUPABASE_URL || "PLACEHOLDER_URL",
-      SUPABASE_KEY: process.env.SUPABASE_KEY || "PLACEHOLDER_KEY",
+      SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+      SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
     };
 
     const fn = new lambda.Function(this, "BackendApiFn", {
@@ -68,6 +76,7 @@ export class WdygdServerStack extends cdk.Stack {
         USER_POOL_ID: userPool.userPoolId,
       },
     });
+
 
     const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
       handler: fn,
