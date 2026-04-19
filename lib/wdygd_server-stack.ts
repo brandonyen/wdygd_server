@@ -78,13 +78,12 @@ export class WdygdServerStack extends cdk.Stack {
     });
 
 
-    const endpoint = new apigw.LambdaRestApi(this, `BackendApiGwEndpoint`, {
-      handler: fn,
+    const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
       restApiName: `BackendApi`,
-      proxy: false,
+      defaultIntegration: new apigw.LambdaIntegration(fn),
     });
 
-    // Explicitly add proxy behavior to the root so the default BackendApiFn still acts as a catch-all
+    // Add catch-all routes to mimic previous LambdaRestApi behavior
     endpoint.root.addMethod("ANY");
     const proxyResource = endpoint.root.addResource("{proxy+}");
     proxyResource.addMethod("ANY");
