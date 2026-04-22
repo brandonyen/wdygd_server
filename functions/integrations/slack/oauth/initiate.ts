@@ -37,9 +37,9 @@ export const handler = async (event: any) => {
 
   const finalRedirectUrl = event.queryStringParameters?.redirectUrl;
 
-  const state = Buffer.from(JSON.stringify({ payload, hmac, finalRedirectUrl })).toString(
-    "base64url",
-  );
+  const state = Buffer.from(
+    JSON.stringify({ payload, hmac, finalRedirectUrl }),
+  ).toString("base64url");
 
   const params = new URLSearchParams({
     client_id: SLACK_CLIENT_ID,

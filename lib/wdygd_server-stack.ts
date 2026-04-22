@@ -134,9 +134,15 @@ export class WdygdServerStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
         environment: {
-          SLACK_CLIENT_ID: supabaseSecret.secretValueFromJson("SLACK_CLIENT_ID").unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret.secretValueFromJson("SLACK_REDIRECT_URI").unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret.secretValueFromJson("STATE_SECRET").unsafeUnwrap(),
+          SLACK_CLIENT_ID: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_ID")
+            .unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret
+            .secretValueFromJson("SLACK_REDIRECT_URI")
+            .unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret
+            .secretValueFromJson("STATE_SECRET")
+            .unsafeUnwrap(),
         },
       },
     );
@@ -155,14 +161,25 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(30),
         environment: {
-          SLACK_CLIENT_ID: supabaseSecret.secretValueFromJson("SLACK_CLIENT_ID").unsafeUnwrap(),
-          SLACK_CLIENT_SECRET: supabaseSecret.secretValueFromJson("SLACK_CLIENT_SECRET").unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret.secretValueFromJson("SLACK_REDIRECT_URI").unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret.secretValueFromJson("STATE_SECRET").unsafeUnwrap(),
-          SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
-          SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
+          SLACK_CLIENT_ID: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_ID")
+            .unsafeUnwrap(),
+          SLACK_CLIENT_SECRET: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_SECRET")
+            .unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret
+            .secretValueFromJson("SLACK_REDIRECT_URI")
+            .unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret
+            .secretValueFromJson("STATE_SECRET")
+            .unsafeUnwrap(),
+          SUPABASE_URL: supabaseSecret
+            .secretValueFromJson("SUPABASE_URL")
+            .unsafeUnwrap(),
+          SUPABASE_KEY: supabaseSecret
+            .secretValueFromJson("SUPABASE_KEY")
+            .unsafeUnwrap(),
         },
-
       },
     );
 
@@ -179,8 +196,12 @@ export class WdygdServerStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
         environment: {
-          SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
-          SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
+          SUPABASE_URL: supabaseSecret
+            .secretValueFromJson("SUPABASE_URL")
+            .unsafeUnwrap(),
+          SUPABASE_KEY: supabaseSecret
+            .secretValueFromJson("SUPABASE_KEY")
+            .unsafeUnwrap(),
         },
       },
     );
@@ -194,8 +215,10 @@ export class WdygdServerStack extends cdk.Stack {
     slackOAuthResource
       .addResource("callback")
       .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
-    slackOAuthResource
-      .addMethod("DELETE", new apigw.LambdaIntegration(slackDisconnectFn));
+    slackOAuthResource.addMethod(
+      "DELETE",
+      new apigw.LambdaIntegration(slackDisconnectFn),
+    );
 
     // --- Slack data-fetch lambda (invoked internally / on schedule) ---
     const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
@@ -364,7 +387,9 @@ export class WdygdServerStack extends cdk.Stack {
     );
 
     // API Gateway integration for CreateIntegrationConnectionLambda
-    const integrationConnectionResource = endpoint.root.addResource("integration-connection");
+    const integrationConnectionResource = endpoint.root.addResource(
+      "integration-connection",
+    );
     integrationConnectionResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
@@ -373,7 +398,6 @@ export class WdygdServerStack extends cdk.Stack {
       "GET",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
     );
-
 
     // Outputs
     new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });

@@ -11,7 +11,10 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY!;
 // 10-minute window for OAuth state
 const STATE_EXPIRY_MS = 10 * 60 * 1000;
 
-function validateState(state: string): { userId: string; finalRedirectUrl?: string } {
+function validateState(state: string): {
+  userId: string;
+  finalRedirectUrl?: string;
+} {
   const { payload, hmac, finalRedirectUrl } = JSON.parse(
     Buffer.from(state, "base64url").toString(),
   );
@@ -38,7 +41,10 @@ function validateState(state: string): { userId: string; finalRedirectUrl?: stri
   return { userId, finalRedirectUrl };
 }
 
-function buildRedirect(finalRedirectUrl: string | undefined, params: Record<string, string>) {
+function buildRedirect(
+  finalRedirectUrl: string | undefined,
+  params: Record<string, string>,
+) {
   if (finalRedirectUrl) {
     const url = new URL(finalRedirectUrl);
     for (const [key, value] of Object.entries(params)) {
@@ -62,7 +68,10 @@ export const handler = async (event: any) => {
   }
 
   if (!code || !state) {
-    return { statusCode: 400, body: JSON.stringify({ error: "missing_oauth_params" }) };
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "missing_oauth_params" }),
+    };
   }
 
   let userId: string;
@@ -71,7 +80,10 @@ export const handler = async (event: any) => {
     ({ userId, finalRedirectUrl } = validateState(state));
   } catch (err) {
     console.error("State validation failed:", err);
-    return { statusCode: 400, body: JSON.stringify({ error: "invalid_state" }) };
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "invalid_state" }),
+    };
   }
 
   // Exchange authorization code for access token
@@ -99,7 +111,9 @@ export const handler = async (event: any) => {
 
   if (!tokenData.ok) {
     console.error("Slack token exchange failed:", tokenData.error);
-    return buildRedirect(finalRedirectUrl, { error: tokenData.error ?? "token_exchange_failed" });
+    return buildRedirect(finalRedirectUrl, {
+      error: tokenData.error ?? "token_exchange_failed",
+    });
   }
 
   const authedUser = tokenData.authed_user;
@@ -159,12 +173,19 @@ export const handler = async (event: any) => {
   if (finalRedirectUrl) {
     const redirectUrl = new URL(finalRedirectUrl);
     redirectUrl.searchParams.set("success", "true");
-    return { statusCode: 302, headers: { Location: redirectUrl.toString() }, body: "" };
+    return {
+      statusCode: 302,
+      headers: { Location: redirectUrl.toString() },
+      body: "",
+    };
   }
 
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ success: true, message: "Slack account connected successfully" }),
+    body: JSON.stringify({
+      success: true,
+      message: "Slack account connected successfully",
+    }),
   };
 };
