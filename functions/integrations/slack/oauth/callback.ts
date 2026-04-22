@@ -6,22 +6,13 @@ const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET!;
 const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI!;
 const STATE_SECRET = process.env.STATE_SECRET!;
 const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const FRONTEND_URL = process.env.FRONTEND_URL!;
+const SUPABASE_KEY = process.env.SUPABASE_KEY!;
 
 // 10-minute window for OAuth state
 const STATE_EXPIRY_MS = 10 * 60 * 1000;
 
-function redirectTo(path: string) {
-  return {
-    statusCode: 302,
-    headers: { Location: `${FRONTEND_URL}${path}` },
-    body: "",
-  };
-}
-
-function validateState(state: string): string {
-  const { payload, hmac } = JSON.parse(
+function validateState(state: string): { userId: string; finalRedirectUrl?: string } {
+  const { payload, hmac, finalRedirectUrl } = JSON.parse(
     Buffer.from(state, "base64url").toString(),
   );
 
@@ -44,7 +35,22 @@ function validateState(state: string): string {
     throw new Error("State expired");
   }
 
-  return userId;
+  return { userId, finalRedirectUrl };
+}
+
+function buildRedirect(finalRedirectUrl: string | undefined, params: Record<string, string>) {
+  if (finalRedirectUrl) {
+    const url = new URL(finalRedirectUrl);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+    return { statusCode: 302, headers: { Location: url.toString() }, body: "" };
+  }
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  };
 }
 
 export const handler = async (event: any) => {
@@ -52,20 +58,20 @@ export const handler = async (event: any) => {
 
   if (error) {
     console.error("Slack OAuth error:", error);
-    return redirectTo(`/settings?error=${encodeURIComponent(error)}`);
+    return { statusCode: 400, body: JSON.stringify({ error }) };
   }
 
   if (!code || !state) {
-    return redirectTo("/settings?error=missing_oauth_params");
+    return { statusCode: 400, body: JSON.stringify({ error: "missing_oauth_params" }) };
   }
 
-  // Validate state and extract user_id
   let userId: string;
+  let finalRedirectUrl: string | undefined;
   try {
-    userId = validateState(state);
+    ({ userId, finalRedirectUrl } = validateState(state));
   } catch (err) {
     console.error("State validation failed:", err);
-    return redirectTo("/settings?error=invalid_state");
+    return { statusCode: 400, body: JSON.stringify({ error: "invalid_state" }) };
   }
 
   // Exchange authorization code for access token
@@ -93,9 +99,7 @@ export const handler = async (event: any) => {
 
   if (!tokenData.ok) {
     console.error("Slack token exchange failed:", tokenData.error);
-    return redirectTo(
-      `/settings?error=${encodeURIComponent(tokenData.error ?? "token_exchange_failed")}`,
-    );
+    return buildRedirect(finalRedirectUrl, { error: tokenData.error ?? "token_exchange_failed" });
   }
 
   const authedUser = tokenData.authed_user;
@@ -106,9 +110,8 @@ export const handler = async (event: any) => {
     : null;
 
   // Upsert into Supabase IntegrationConnection
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // Check for an existing connection for this user + provider
   const { data: existing, error: fetchError } = await supabase
     .from("IntegrationConnection")
     .select("integration_id")
@@ -118,11 +121,10 @@ export const handler = async (event: any) => {
 
   if (fetchError) {
     console.error("Supabase fetch error:", fetchError);
-    return redirectTo("/settings?error=db_error");
+    return buildRedirect(finalRedirectUrl, { error: "db_error" });
   }
 
   if (existing) {
-    // Update the existing connection with the fresh token
     const { error: updateError } = await supabase
       .from("IntegrationConnection")
       .update({
@@ -134,10 +136,9 @@ export const handler = async (event: any) => {
 
     if (updateError) {
       console.error("Supabase update error:", updateError);
-      return redirectTo("/settings?error=db_error");
+      return buildRedirect(finalRedirectUrl, { error: "db_error" });
     }
   } else {
-    // Create a new connection
     const { error: insertError } = await supabase
       .from("IntegrationConnection")
       .insert({
@@ -151,9 +152,19 @@ export const handler = async (event: any) => {
 
     if (insertError) {
       console.error("Supabase insert error:", insertError);
-      return redirectTo("/settings?error=db_error");
+      return buildRedirect(finalRedirectUrl, { error: "db_error" });
     }
   }
 
-  return redirectTo("/settings?success=slack_connected");
+  if (finalRedirectUrl) {
+    const redirectUrl = new URL(finalRedirectUrl);
+    redirectUrl.searchParams.set("success", "true");
+    return { statusCode: 302, headers: { Location: redirectUrl.toString() }, body: "" };
+  }
+
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ success: true, message: "Slack account connected successfully" }),
+  };
 };

@@ -17,13 +17,13 @@ const USER_SCOPES = [
 ].join(",");
 
 export const handler = async (event: any) => {
-  const userId = event.queryStringParameters?.user_id;
+  const userId = event.queryStringParameters?.userId;
 
   if (!userId) {
     return {
       statusCode: 400,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ error: "user_id query parameter is required" }),
+      body: JSON.stringify({ error: "userId query parameter is required" }),
     };
   }
 
@@ -35,7 +35,9 @@ export const handler = async (event: any) => {
     .update(payload)
     .digest("hex");
 
-  const state = Buffer.from(JSON.stringify({ payload, hmac })).toString(
+  const finalRedirectUrl = event.queryStringParameters?.redirectUrl;
+
+  const state = Buffer.from(JSON.stringify({ payload, hmac, finalRedirectUrl })).toString(
     "base64url",
   );
 

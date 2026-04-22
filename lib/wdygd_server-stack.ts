@@ -134,9 +134,9 @@ export class WdygdServerStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
         environment: {
-          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
-          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
-          STATE_SECRET: process.env.STATE_SECRET ?? "",
+          SLACK_CLIENT_ID: supabaseSecret.secretValueFromJson("SLACK_CLIENT_ID").unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret.secretValueFromJson("SLACK_REDIRECT_URI").unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret.secretValueFromJson("STATE_SECRET").unsafeUnwrap(),
         },
       },
     );
@@ -153,20 +153,39 @@ export class WdygdServerStack extends cdk.Stack {
         ),
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(30),
         environment: {
-          SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID ?? "",
-          SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET ?? "",
-          SLACK_REDIRECT_URI: process.env.SLACK_REDIRECT_URI ?? "",
-          STATE_SECRET: process.env.STATE_SECRET ?? "",
-          SUPABASE_URL: process.env.SUPABASE_URL ?? "",
-          SUPABASE_SERVICE_ROLE_KEY:
-            process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-          FRONTEND_URL: process.env.FRONTEND_URL ?? "",
+          SLACK_CLIENT_ID: supabaseSecret.secretValueFromJson("SLACK_CLIENT_ID").unsafeUnwrap(),
+          SLACK_CLIENT_SECRET: supabaseSecret.secretValueFromJson("SLACK_CLIENT_SECRET").unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret.secretValueFromJson("SLACK_REDIRECT_URI").unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret.secretValueFromJson("STATE_SECRET").unsafeUnwrap(),
+          SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+          SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
+        },
+
+      },
+    );
+
+    // --- Slack disconnect ---
+    const slackDisconnectFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackDisconnectFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/disconnect.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        environment: {
+          SUPABASE_URL: supabaseSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+          SUPABASE_KEY: supabaseSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
         },
       },
     );
 
-    // Routes: GET /oauth/slack/initiate and GET /oauth/slack/callback
+    // Routes: /oauth/slack/initiate, /oauth/slack/callback, DELETE /oauth/slack
     const oauthResource = endpoint.root.addResource("oauth");
     const slackOAuthResource = oauthResource.addResource("slack");
     slackOAuthResource
@@ -175,6 +194,8 @@ export class WdygdServerStack extends cdk.Stack {
     slackOAuthResource
       .addResource("callback")
       .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
+    slackOAuthResource
+      .addMethod("DELETE", new apigw.LambdaIntegration(slackDisconnectFn));
 
     // --- Slack data-fetch lambda (invoked internally / on schedule) ---
     const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
@@ -383,6 +404,9 @@ export class WdygdServerStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "SlackOAuthCallbackArn", {
       value: slackOAuthCallbackFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackDisconnectArn", {
+      value: slackDisconnectFn.functionArn,
     });
   }
 }
