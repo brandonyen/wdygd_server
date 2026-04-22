@@ -7,6 +7,7 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "node:path";
@@ -51,10 +52,30 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Environment Variables (Supabase credentials)
+    // Fetch Supabase Credentials from Secrets Manager
+    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "SupabaseSecret",
+      "prod/wdygd",
+    );
+
+    // Environment Variables resolved via CloudFormation dynamic references
     const defaultEnvironment = {
-      SUPABASE_URL: process.env.SUPABASE_URL || "PLACEHOLDER_URL",
-      SUPABASE_KEY: process.env.SUPABASE_KEY || "PLACEHOLDER_KEY",
+      SUPABASE_URL: supabaseSecret
+        .secretValueFromJson("SUPABASE_URL")
+        .unsafeUnwrap(),
+      SUPABASE_KEY: supabaseSecret
+        .secretValueFromJson("SUPABASE_KEY")
+        .unsafeUnwrap(),
+      GITHUB_CLIENT_ID: supabaseSecret
+        .secretValueFromJson("GITHUB_CLIENT_ID")
+        .unsafeUnwrap(),
+      GITHUB_CLIENT_SECRET: supabaseSecret
+        .secretValueFromJson("GITHUB_CLIENT_SECRET")
+        .unsafeUnwrap(),
+      GITHUB_REDIRECT_URI: supabaseSecret
+        .secretValueFromJson("GITHUB_REDIRECT_URI")
+        .unsafeUnwrap(),
     };
 
     const fn = new lambda.Function(this, "BackendApiFn", {
@@ -69,17 +90,36 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    const endpoint = new apigw.LambdaRestApi(this, "BackendApiGwEndpoint", {
-      handler: fn,
-      restApiName: "BackendApi",
-      proxy: false,
+    const githubFn = new lambda.Function(this, "GitHubIntegrationFn", {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "functions/integrations/github"),
+      ),
+      timeout: cdk.Duration.seconds(30),
     });
 
-    // Catch-all proxy to backend lambda for all non-OAuth routes
-    endpoint.root.addMethod("ANY", new apigw.LambdaIntegration(fn));
-    endpoint.root
-      .addResource("{proxy+}")
-      .addMethod("ANY", new apigw.LambdaIntegration(fn));
+    const githubOAuthFn = new lambda.Function(this, "GitHubOAuthFn", {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: "oauth.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "functions/integrations/github"),
+      ),
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        ...defaultEnvironment,
+      },
+    });
+
+    const endpoint = new apigw.RestApi(this, "BackendApiGwEndpoint", {
+      restApiName: "BackendApi",
+      defaultIntegration: new apigw.LambdaIntegration(fn),
+    });
+
+    // Add catch-all routes to mimic previous LambdaRestApi behavior
+    endpoint.root.addMethod("ANY");
+    const proxyResource = endpoint.root.addResource("{proxy+}");
+    proxyResource.addMethod("ANY");
 
     // --- Slack OAuth: /oauth/slack/initiate ---
     const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
@@ -146,11 +186,27 @@ export class WdygdServerStack extends cdk.Stack {
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
       },
     });
 
+    const github = endpoint.root.addResource("github");
+    github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
+
+    const auth = endpoint.root.addResource("auth");
+    const authGithub = auth.addResource("github");
+    authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub.addMethod("DELETE", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub
+      .addResource("callback")
+      .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+    authGithub
+      .addResource("status")
+      .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
       schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
@@ -207,7 +263,6 @@ export class WdygdServerStack extends cdk.Stack {
 
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
-
     // Summary Lambda
     const summaryLambda = new lambda.Function(this, "SummaryLambda", {
       runtime: lambda.Runtime.NODEJS_LATEST,
@@ -232,7 +287,75 @@ export class WdygdServerStack extends cdk.Stack {
       }),
     );
 
+    // Create User Config Lambda
+    const createUserConfigLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateUserConfigLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-user-config-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          ...defaultEnvironment,
+        },
+      },
+    );
+
+    // API Gateway integration for CreateUserConfigLambda
+    const userConfigResource = endpoint.root.addResource("user-config");
+    userConfigResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createUserConfigLambda),
+    );
+    userConfigResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(createUserConfigLambda),
+    );
+
+    // Create Integration Connection Lambda
+    const createIntegrationConnectionLambda = new lambdaNode.NodejsFunction(
+      this,
+      "CreateIntegrationConnectionLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/create-integration-connection-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      },
+    );
+
+    // API Gateway integration for CreateIntegrationConnectionLambda
+    const integrationConnectionResource = endpoint.root.addResource("integration-connection");
+    integrationConnectionResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+    );
+    integrationConnectionResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+    );
+
+
     // Outputs
+    new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
     new cdk.CfnOutput(this, "UserPoolClientId", {
       value: userPoolClient.userPoolClientId,
