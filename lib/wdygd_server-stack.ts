@@ -111,8 +111,8 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    const endpoint = new apigw.RestApi(this, `BackendApiGwEndpoint`, {
-      restApiName: `BackendApi`,
+    const endpoint = new apigw.RestApi(this, "BackendApiGwEndpoint", {
+      restApiName: "BackendApi",
       defaultIntegration: new apigw.LambdaIntegration(fn),
     });
 
@@ -121,6 +121,102 @@ export class WdygdServerStack extends cdk.Stack {
     const proxyResource = endpoint.root.addResource("{proxy+}");
     proxyResource.addMethod("ANY");
 
+    // --- Slack OAuth: /oauth/slack/initiate ---
+    const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackOAuthInitiateFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/initiate.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        environment: {
+          SLACK_CLIENT_ID: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_ID")
+            .unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret
+            .secretValueFromJson("SLACK_REDIRECT_URI")
+            .unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret
+            .secretValueFromJson("STATE_SECRET")
+            .unsafeUnwrap(),
+        },
+      },
+    );
+
+    // --- Slack OAuth: /oauth/slack/callback ---
+    const slackOAuthCallbackFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackOAuthCallbackFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/callback.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(30),
+        environment: {
+          SLACK_CLIENT_ID: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_ID")
+            .unsafeUnwrap(),
+          SLACK_CLIENT_SECRET: supabaseSecret
+            .secretValueFromJson("SLACK_CLIENT_SECRET")
+            .unsafeUnwrap(),
+          SLACK_REDIRECT_URI: supabaseSecret
+            .secretValueFromJson("SLACK_REDIRECT_URI")
+            .unsafeUnwrap(),
+          STATE_SECRET: supabaseSecret
+            .secretValueFromJson("STATE_SECRET")
+            .unsafeUnwrap(),
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      },
+    );
+
+    // --- Slack disconnect ---
+    const slackDisconnectFn = new lambdaNode.NodejsFunction(
+      this,
+      "SlackDisconnectFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/slack/oauth/disconnect.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        environment: {
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      },
+    );
+
+    // Routes: /oauth/slack/initiate, /oauth/slack/callback, DELETE /oauth/slack
+    const oauthResource = endpoint.root.addResource("oauth");
+    const slackOAuthResource = oauthResource.addResource("slack");
+    slackOAuthResource
+      .addResource("initiate")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthInitiateFn));
+    slackOAuthResource
+      .addResource("callback")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
+    slackOAuthResource.addMethod(
+      "DELETE",
+      new apigw.LambdaIntegration(slackDisconnectFn),
+    );
+
+    // --- Slack data-fetch lambda (invoked internally / on schedule) ---
     const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
       entry: path.join(
         __dirname,
@@ -287,7 +383,9 @@ export class WdygdServerStack extends cdk.Stack {
     );
 
     // API Gateway integration for CreateIntegrationConnectionLambda
-    const integrationConnectionResource = endpoint.root.addResource("integration-connection");
+    const integrationConnectionResource = endpoint.root.addResource(
+      "integration-connection",
+    );
     integrationConnectionResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
@@ -296,7 +394,6 @@ export class WdygdServerStack extends cdk.Stack {
       "GET",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
     );
-
 
     // Outputs
     new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
@@ -321,6 +418,15 @@ export class WdygdServerStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
       value: slackFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackOAuthInitiateArn", {
+      value: slackOAuthInitiateFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackOAuthCallbackArn", {
+      value: slackOAuthCallbackFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "SlackDisconnectArn", {
+      value: slackDisconnectFn.functionArn,
     });
   }
 }
