@@ -1,12 +1,10 @@
 import * as crypto from "crypto";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "../../../utils/get-supabase-client";
 
 const SLACK_CLIENT_ID = process.env.SLACK_CLIENT_ID!;
 const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET!;
 const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI!;
 const STATE_SECRET = process.env.STATE_SECRET!;
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_KEY = process.env.SUPABASE_KEY!;
 
 // 10-minute window for OAuth state
 const STATE_EXPIRY_MS = 10 * 60 * 1000;
@@ -124,9 +122,9 @@ export const handler = async (event: any) => {
     : null;
 
   // Upsert into Supabase IntegrationConnection
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase = await getSupabase();
 
-  const { data: existing, error: fetchError } = await supabase
+  const { data: existing, error: fetchError } = await (supabase as any)
     .from("IntegrationConnection")
     .select("integration_id")
     .eq("user_id", userId)
@@ -139,7 +137,7 @@ export const handler = async (event: any) => {
   }
 
   if (existing) {
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("IntegrationConnection")
       .update({
         access_token: accessToken,
@@ -153,7 +151,7 @@ export const handler = async (event: any) => {
       return buildRedirect(finalRedirectUrl, { error: "db_error" });
     }
   } else {
-    const { error: insertError } = await supabase
+    const { error: insertError } = await (supabase as any)
       .from("IntegrationConnection")
       .insert({
         integration_id: crypto.randomUUID(),

@@ -1,7 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_KEY = process.env.SUPABASE_KEY!;
+import { getSupabase } from "../../../utils/get-supabase-client";
 
 export const handler = async (event: any) => {
   const userId = event.queryStringParameters?.userId;
@@ -13,7 +10,7 @@ export const handler = async (event: any) => {
     };
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase = await getSupabase();
 
   const { error } = await supabase
     .from("IntegrationConnection")

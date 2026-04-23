@@ -173,12 +173,10 @@ export class WdygdServerStack extends cdk.Stack {
           STATE_SECRET: supabaseSecret
             .secretValueFromJson("STATE_SECRET")
             .unsafeUnwrap(),
-          SUPABASE_URL: supabaseSecret
-            .secretValueFromJson("SUPABASE_URL")
-            .unsafeUnwrap(),
-          SUPABASE_KEY: supabaseSecret
-            .secretValueFromJson("SUPABASE_KEY")
-            .unsafeUnwrap(),
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
         },
       },
     );
@@ -196,12 +194,10 @@ export class WdygdServerStack extends cdk.Stack {
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
         environment: {
-          SUPABASE_URL: supabaseSecret
-            .secretValueFromJson("SUPABASE_URL")
-            .unsafeUnwrap(),
-          SUPABASE_KEY: supabaseSecret
-            .secretValueFromJson("SUPABASE_KEY")
-            .unsafeUnwrap(),
+          ...defaultEnvironment,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
         },
       },
     );
