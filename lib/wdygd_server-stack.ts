@@ -350,7 +350,13 @@ export class WdygdServerStack extends cdk.Stack {
     );
 
     // API Gateway integration for CreateUserConfigLambda
-    const userConfigResource = endpoint.root.addResource("user-config");
+    const userConfigResource = endpoint.root.addResource("user-config", {
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type", "Authorization"],
+      },
+    });
     userConfigResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(createUserConfigLambda),

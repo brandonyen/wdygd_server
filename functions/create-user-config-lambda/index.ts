@@ -1,5 +1,11 @@
 import { getSupabase } from "../utils/get-supabase-client";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
+
 exports.handler = async (event: any) => {
   console.log("Create user config triggered.");
 
@@ -13,6 +19,7 @@ exports.handler = async (event: any) => {
       if (!email) {
         return {
           statusCode: 400,
+          headers: corsHeaders,
           body: JSON.stringify({
             message: "Missing email in query parameters",
           }),
@@ -29,6 +36,7 @@ exports.handler = async (event: any) => {
         console.error("Error fetching user config:", error);
         return {
           statusCode: 500,
+          headers: corsHeaders,
           body: JSON.stringify({
             message: "Error fetching from database",
             error,
@@ -39,12 +47,14 @@ exports.handler = async (event: any) => {
       if (!data) {
         return {
           statusCode: 404,
+          headers: corsHeaders,
           body: JSON.stringify({ message: "User not found" }),
         };
       }
 
       return {
         statusCode: 200,
+        headers: corsHeaders,
         body: JSON.stringify({ data }),
       };
     }
@@ -56,6 +66,7 @@ exports.handler = async (event: any) => {
       if (!email) {
         return {
           statusCode: 400,
+          headers: corsHeaders,
           body: JSON.stringify({ message: "Missing email" }),
         };
       }
@@ -71,6 +82,7 @@ exports.handler = async (event: any) => {
         console.error("Error checking existing user:", fetchError);
         return {
           statusCode: 500,
+          headers: corsHeaders,
           body: JSON.stringify({
             message: "Error checking database",
             error: fetchError,
@@ -81,6 +93,7 @@ exports.handler = async (event: any) => {
       if (existingUser) {
         return {
           statusCode: 200,
+          headers: corsHeaders,
           body: JSON.stringify({
             message: "User already exists",
             data: existingUser,
@@ -104,12 +117,14 @@ exports.handler = async (event: any) => {
         console.error("Error inserting user config:", error);
         return {
           statusCode: 500,
+          headers: corsHeaders,
           body: JSON.stringify({ message: "Error writing to database", error }),
         };
       }
 
       return {
         statusCode: 201,
+        headers: corsHeaders,
         body: JSON.stringify({
           message: "User config created successfully",
           data,
@@ -120,12 +135,14 @@ exports.handler = async (event: any) => {
     // Fallback for unsupported methods
     return {
       statusCode: 405,
+      headers: corsHeaders,
       body: JSON.stringify({ message: "Method Not Allowed" }),
     };
   } catch (err) {
     console.error("Unexpected error:", err);
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ message: "Internal server error" }),
     };
   }
