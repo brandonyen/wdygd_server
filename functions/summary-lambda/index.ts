@@ -1,6 +1,5 @@
 import { getSupabase } from "../utils/get-supabase-client";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { randomUUID } from "crypto";
 
 const bedrockClient = new BedrockRuntimeClient({});
 
@@ -160,7 +159,6 @@ export const handler = async (event: any) => {
       // 5. Write to Summary table
       // Note: Cast chain to 'any' to bypass strict schema types if not defined perfectly
       const { error: insertError } = await (supabase.from("Summary") as any).insert({
-        summary_id: randomUUID(),
         user_id: user_id,
         summary_type: summary_type,
         created_at: new Date().toISOString(),

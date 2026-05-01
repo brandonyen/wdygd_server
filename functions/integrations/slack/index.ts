@@ -1,6 +1,5 @@
 import { WebClient } from "@slack/web-api";
 import { getSupabase } from "../../utils/get-supabase-client";
-import { randomUUID } from "crypto";
 
 interface MessageInfo {
   user: string;
@@ -205,7 +204,6 @@ export const handler = async (event: any) => {
     // Write one ActivityEvent per channel to Supabase
     const now = new Date().toISOString();
     const activityEvents = enrichedChannels.map((channel) => ({
-      event_id: randomUUID(),
       user_id: userId,
       integration_id: integrationId,
       timestamp: now,

@@ -1,5 +1,4 @@
 import { getSupabase } from "../../utils/get-supabase-client";
-import { randomUUID } from "crypto";
 
 // ============================================================================
 // Types
@@ -534,7 +533,6 @@ export async function handler(event: any): Promise<any> {
 
     if (params.userId && params.integrationId) {
       const activityEvent = {
-        event_id: randomUUID(),
         user_id: params.userId,
         integration_id: params.integrationId,
         timestamp: new Date().toISOString(),
