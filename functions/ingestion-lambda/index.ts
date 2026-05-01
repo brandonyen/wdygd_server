@@ -1,7 +1,9 @@
 import { getSupabase } from "../utils/get-supabase-client";
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 
 const lambdaClient = new LambdaClient({});
+const sqsClient = new SQSClient({});
 
 interface IntegrationConnection {
   integration_id: string;
@@ -224,6 +226,34 @@ exports.handler = async (event: any) => {
           invokeErr,
         );
       }
+    }
+
+    // Now push to Summary Queue
+    const summaryQueueUrl = process.env.SUMMARY_QUEUE_URL;
+    if (summaryQueueUrl) {
+      const summaryMsg = {
+        user_id: userId,
+        start_date: startDateISO,
+        end_date: endDate,
+        summary_type: "DAILY",
+      };
+
+      try {
+        await sqsClient.send(
+          new SendMessageCommand({
+            QueueUrl: summaryQueueUrl,
+            MessageBody: JSON.stringify(summaryMsg),
+          }),
+        );
+        console.log(`Sent summary job for user ${userId} to SummaryQueue`);
+      } catch (sqsErr) {
+        console.error(
+          `Failed to send summary job to SQS for user ${userId}:`,
+          sqsErr,
+        );
+      }
+    } else {
+      console.warn("SUMMARY_QUEUE_URL not defined, skipping summary trigger");
     }
   }
 };

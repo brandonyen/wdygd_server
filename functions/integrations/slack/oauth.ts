@@ -228,7 +228,6 @@ async function handleCallback(event: any): Promise<any> {
     const { error: insertError } = await (supabase as any)
       .from("IntegrationConnection")
       .insert({
-        integration_id: crypto.randomUUID(),
         user_id: userId,
         provider: "SLACK",
         access_token: accessToken,

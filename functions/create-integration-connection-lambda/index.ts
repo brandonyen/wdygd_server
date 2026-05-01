@@ -1,5 +1,4 @@
 import { getSupabase } from "../utils/get-supabase-client";
-import { randomUUID } from "crypto";
 
 exports.handler = async (event: any) => {
   console.log("Create integration connection triggered.");
@@ -28,14 +27,11 @@ exports.handler = async (event: any) => {
         };
       }
 
-      const integration_id = randomUUID();
-
       const { data, error } = await (
         supabase.from("IntegrationConnection") as any
       )
         .insert([
           {
-            integration_id,
             user_id,
             provider,
             token_expiration: token_expiration

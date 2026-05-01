@@ -1,6 +1,5 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "crypto";
 
 // ============================================================================
 // Types
@@ -217,7 +216,6 @@ async function handleCallback(
     const { error: insertError } = await supabase
       .from("IntegrationConnection")
       .insert({
-        integration_id: randomUUID(),
         user_id: userId,
         provider: "GITHUB",
         access_token: tokenData.access_token,
