@@ -291,18 +291,29 @@ export class WdygdServerStack extends cdk.Stack {
     ingestionQueue.grantSendMessages(schedulerLambda);
 
     // Ingestion Lambda
-    const ingestionLambda = new lambda.Function(this, "IngestionLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/ingestion-lambda"),
+    const ingestionLambda = new lambdaNode.NodejsFunction(this, "IngestionLambda", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/ingestion-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
         SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
+        GITHUB_LAMBDA_ARN: githubFn.functionArn,
+        SLACK_LAMBDA_ARN: slackFn.functionArn,
       },
     });
+
+    // Grant Ingestion Lambda permission to invoke the integration lambdas
+    githubFn.grantInvoke(ingestionLambda);
+    slackFn.grantInvoke(ingestionLambda);
 
     // Add SQS event source for Ingestion Lambda
     ingestionLambda.addEventSource(new SqsEventSource(ingestionQueue));
