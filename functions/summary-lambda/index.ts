@@ -86,8 +86,10 @@ class GitHubAggregator implements ProviderAggregator {
   };
 
   aggregate(p: any): void {
-    if (p.repository) {
-      this.stats.repos.add(`${p.repository.owner}/${p.repository.repo}`);
+    if (p.stats && p.stats.reposTouched) {
+      for (const repo of p.stats.reposTouched) {
+        this.stats.repos.add(repo);
+      }
     }
     if (p.stats) {
       this.stats.commits += p.stats.totalCommits || 0;

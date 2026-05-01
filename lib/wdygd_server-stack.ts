@@ -239,16 +239,6 @@ export class WdygdServerStack extends cdk.Stack {
       allowHeaders: ["Content-Type", "Authorization"],
     };
 
-    const githubResource = endpoint.root.addResource("github", {
-      defaultCorsPreflightOptions: commonCorsOptions,
-    });
-    githubResource.addMethod("POST", new apigw.LambdaIntegration(githubFn));
-
-    const slackResource = endpoint.root.addResource("slack", {
-      defaultCorsPreflightOptions: commonCorsOptions,
-    });
-    slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
-
     const auth = endpoint.root.addResource("auth");
 
     // GitHub Auth routes
@@ -422,15 +412,15 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Create Integration Connection Lambda
-    const createIntegrationConnectionLambda = new lambdaNode.NodejsFunction(
+    // Get Integration Connections Lambda
+    const getIntegrationConnectionsLambda = new lambdaNode.NodejsFunction(
       this,
-      "CreateIntegrationConnectionLambda",
+      "GetIntegrationConnectionsLambda",
       {
         entry: path.join(
           __dirname,
           "..",
-          "functions/create-integration-connection-lambda/index.ts",
+          "functions/get-integration-connections-lambda/index.ts",
         ),
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
@@ -444,7 +434,7 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // API Gateway integration for CreateIntegrationConnectionLambda
+    // API Gateway integration for GetIntegrationConnectionsLambda
     const integrationConnectionResource = endpoint.root.addResource(
       "integration-connection",
       {
@@ -452,16 +442,8 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
     integrationConnectionResource.addMethod(
-      "POST",
-      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
-    );
-    integrationConnectionResource.addMethod(
       "GET",
-      new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+      new apigw.LambdaIntegration(getIntegrationConnectionsLambda),
       {
         authorizer,
         authorizationType: apigw.AuthorizationType.COGNITO,

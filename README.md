@@ -55,28 +55,6 @@ Retrieves all integration connections for a specific user.
   }
   ```
 
-### **POST `/integration-connection`**
-
-Manually inserts a new integration connection.
-
-- **Body:**
-  ```json
-  {
-    "user_id": "uuid",
-    "provider": "GITHUB" | "SLACK",
-    "access_token": "token",
-    "refresh_token": "token",
-    "token_expiration": "ISO-8601"
-  }
-  ```
-- **Response (201 Created):**
-  ```json
-  {
-    "message": "Integration connection created successfully",
-    "data": [{ ...integration_object... }]
-  }
-  ```
-
 ---
 
 ## 3. OAuth Authentication Flows (GitHub & Slack)
@@ -185,9 +163,3 @@ Requests the generation of a new summary. This puts a job onto an SQS queue whic
     "message": "Summary job queued successfully"
   }
   ```
-
----
-
-## Data Fetching / Internal Endpoints (`/github`, `/slack`)
-
-The `/github` and `/slack` endpoints exposed via POST are intended for **internal orchestration** by the `IngestionLambda`. While exposed on API Gateway, they should generally not be called by the frontend directly. They require heavy payloads (`startDate`, `endDate`, `integrationId`, `userId`) and process vast amounts of background data into the `ActivityEvent` database.
