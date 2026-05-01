@@ -33,6 +33,29 @@ export const handler = async (event: any) => {
     );
 
     try {
+      // 0. Check if summary already exists
+      const { data: existingSummaries, error: checkError } = await (
+        supabase.from("Summary") as any
+      )
+        .select("summary_id")
+        .eq("user_id", user_id)
+        .eq("start_date", start_date)
+        .eq("end_date", end_date)
+        .eq("summary_type", summary_type);
+
+      if (checkError) {
+        throw new Error(
+          `Failed to check existing summaries: ${checkError.message}`,
+        );
+      }
+
+      if (existingSummaries && existingSummaries.length > 0) {
+        console.log(
+          `Summary already exists for user ${user_id} (${start_date} to ${end_date}) type ${summary_type}. Skipping.`,
+        );
+        continue;
+      }
+
       // 1. Fetch Integrations to map integration_id -> provider
       const { data: integrations, error: intError } = await supabase
         .from("IntegrationConnection")

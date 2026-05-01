@@ -409,6 +409,47 @@ export class WdygdServerStack extends cdk.Stack {
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
     );
 
+    // Summary API Lambda
+    const summaryApiLambda = new lambdaNode.NodejsFunction(
+      this,
+      "SummaryApiLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/summary-api-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(30),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          ...supabaseEnv,
+          SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
+        },
+      },
+    );
+
+    summaryQueue.grantSendMessages(summaryApiLambda);
+
+    const summaryResource = endpoint.root.addResource("summary", {
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowMethods: apigw.Cors.ALL_METHODS,
+        allowHeaders: ["Content-Type", "Authorization"],
+      },
+    });
+    summaryResource.addMethod(
+      "GET",
+      new apigw.LambdaIntegration(summaryApiLambda),
+    );
+    summaryResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(summaryApiLambda),
+    );
+
     // Outputs
     new cdk.CfnOutput(this, "BackendApiUrl", { value: endpoint.url });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });
