@@ -117,8 +117,7 @@ async function fetchChannelMessages(
 }
 
 export const handler = async (event: any) => {
-  const payload = event.body ? JSON.parse(event.body) : event;
-  const { startDate, endDate, userId, integrationId } = payload;
+  const { startDate, endDate, userId, integrationId } = event;
 
   const supabase = await getSupabase();
 
@@ -304,17 +303,11 @@ export const handler = async (event: any) => {
     }
 
     return {
-      statusCode: 200,
-      body: JSON.stringify({
-        dateRange: { start: startDate, end: endDate },
-        channels: enrichedChannels,
-      }),
+      dateRange: { start: startDate, end: endDate },
+      channels: enrichedChannels,
     };
   } catch (error) {
     console.error("Slack Handler Failed:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Failed to fetch Slack messages" }),
-    };
+    throw error;
   }
 };

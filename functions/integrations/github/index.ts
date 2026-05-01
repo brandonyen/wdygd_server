@@ -428,18 +428,11 @@ async function fetchIssues(
 
 export async function handler(event: any): Promise<any> {
   try {
-    // Parse request body
-    const payload = event.body ? JSON.parse(event.body) : event;
-    const params: GitHubRequestParams = payload;
+    const params: GitHubRequestParams = event;
 
     // Validate required parameters
     if (!params.startDate || !params.endDate) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: "Missing required fields: startDate, endDate",
-        }),
-      };
+      throw new Error("Missing required fields: startDate, endDate");
     }
 
     const owner = params.owner || "TODO_OWNER";
@@ -461,13 +454,9 @@ export async function handler(event: any): Promise<any> {
         .single();
 
       if (integrationError || !integration?.access_token) {
-        return {
-          statusCode: 401,
-          body: JSON.stringify({
-            error: `GitHub account not connected. Failed to fetch integration credentials: ${integrationError?.message}`,
-            authRequired: true,
-          }),
-        };
+        throw new Error(
+          `GitHub account not connected. Failed to fetch integration credentials: ${integrationError?.message}`
+        );
       }
 
       githubToken = integration.access_token;
@@ -480,13 +469,7 @@ export async function handler(event: any): Promise<any> {
         console.log("GitHub token expired, attempting refresh...");
 
         if (!integration.refresh_token) {
-          return {
-            statusCode: 401,
-            body: JSON.stringify({
-              error: "GitHub token expired and no refresh token available.",
-              authRequired: true,
-            }),
-          };
+          throw new Error("GitHub token expired and no refresh token available.");
         }
 
         try {
@@ -520,23 +503,11 @@ export async function handler(event: any): Promise<any> {
           }
         } catch (refreshErr) {
           console.error("GitHub token refresh failed:", refreshErr);
-          return {
-            statusCode: 401,
-            body: JSON.stringify({
-              error: "Failed to refresh GitHub token.",
-              authRequired: true,
-            }),
-          };
+          throw new Error("Failed to refresh GitHub token.");
         }
       }
     } else {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error:
-            "Authentication required: provide ('userId' and 'integrationId')",
-        }),
-      };
+      throw new Error("Authentication required: provide ('userId' and 'integrationId')");
     }
 
     // Validate date format
@@ -544,19 +515,11 @@ export async function handler(event: any): Promise<any> {
     const endDate = new Date(params.endDate);
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: "Invalid date format. Use ISO 8601 format.",
-        }),
-      };
+      throw new Error("Invalid date format. Use ISO 8601 format.");
     }
 
     if (startDate > endDate) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "startDate must be before endDate" }),
-      };
+      throw new Error("startDate must be before endDate");
     }
 
     // Fetch data from GitHub API
@@ -645,19 +608,9 @@ export async function handler(event: any): Promise<any> {
       }
     }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(summaryData, null, 2),
-    };
+    return summaryData;
   } catch (error) {
     console.error("Error fetching GitHub data:", error);
-
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: errorMessage }),
-    };
+    throw error;
   }
 }
