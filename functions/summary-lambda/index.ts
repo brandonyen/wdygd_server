@@ -6,6 +6,132 @@ import {
 
 const bedrockClient = new BedrockRuntimeClient({});
 
+// ============================================================================
+// Provider Aggregation Interfaces
+// ============================================================================
+
+interface ProviderAggregator {
+  /**
+   * Processes a single raw ActivityEvent payload and aggregates it internally.
+   */
+  aggregate(payload: any): void;
+
+  /**
+   * Returns the formatted string to be injected into the LLM prompt.
+   * Return an empty string if there was no relevant activity.
+   */
+  getPrompt(): string;
+}
+
+// ============================================================================
+// Concrete Provider Aggregators
+// ============================================================================
+
+class SlackAggregator implements ProviderAggregator {
+  private slackChannels = new Map<
+    string,
+    {
+      name: string;
+      messagesCount: number;
+      participants: Set<string>;
+      snippets: string[];
+    }
+  >();
+
+  aggregate(p: any): void {
+    const channelId = p.channelId;
+    if (!channelId) return;
+
+    if (!this.slackChannels.has(channelId)) {
+      this.slackChannels.set(channelId, {
+        name: p.channelName || "unknown",
+        messagesCount: 0,
+        participants: new Set(),
+        snippets: [],
+      });
+    }
+    const ch = this.slackChannels.get(channelId)!;
+    const messages = p.messages || [];
+    ch.messagesCount += messages.length;
+    for (const msg of messages) {
+      if (msg.user) ch.participants.add(msg.user);
+      // Extract a few sample snippets for context
+      if (ch.snippets.length < 5 && msg.text) {
+        ch.snippets.push(`${msg.user}: ${msg.text.substring(0, 150)}`);
+      }
+    }
+  }
+
+  getPrompt(): string {
+    if (this.slackChannels.size === 0) return "";
+
+    let prompt = `Slack Activity:\n`;
+    for (const [_, ch] of this.slackChannels.entries()) {
+      prompt += `- Channel #${ch.name}: ${ch.messagesCount} messages involving ${Array.from(ch.participants).join(", ")}.\n`;
+      if (ch.snippets.length > 0) {
+        prompt += `  Sample conversations:\n    ${ch.snippets.join("\n    ")}\n`;
+      }
+    }
+    return prompt + "\n";
+  }
+}
+
+class GitHubAggregator implements ProviderAggregator {
+  private stats = {
+    commits: 0,
+    prsOpened: 0,
+    prsMerged: 0,
+    issuesClosed: 0,
+    repos: new Set<string>(),
+  };
+
+  aggregate(p: any): void {
+    if (p.repository) {
+      this.stats.repos.add(`${p.repository.owner}/${p.repository.repo}`);
+    }
+    if (p.stats) {
+      this.stats.commits += p.stats.totalCommits || 0;
+      this.stats.prsOpened += p.stats.totalPRsOpened || 0;
+      this.stats.prsMerged += p.stats.totalPRsMerged || 0;
+      this.stats.issuesClosed += p.stats.totalIssuesClosed || 0;
+    }
+  }
+
+  getPrompt(): string {
+    if (this.stats.repos.size === 0) return "";
+
+    return `GitHub Activity:
+- Repositories touched: ${Array.from(this.stats.repos).join(", ")}
+- Commits made: ${this.stats.commits}
+- Pull Requests Opened: ${this.stats.prsOpened}
+- Pull Requests Merged: ${this.stats.prsMerged}
+- Issues Closed: ${this.stats.issuesClosed}
+
+`;
+  }
+}
+
+// Example of an interfaceable aggregator that is not actually implemented yet
+class GenericProviderAggregator implements ProviderAggregator {
+  private rawEventsCount = 0;
+
+  constructor(private providerName: string) {}
+
+  aggregate(p: any): void {
+    // TODO: implement specific aggregation logic
+    this.rawEventsCount++;
+  }
+
+  getPrompt(): string {
+    if (this.rawEventsCount === 0) return "";
+    return `${this.providerName} Activity: Recorded ${this.rawEventsCount} events.\n\n`;
+  }
+}
+
+// ============================================================================
+// Main Handler
+// ============================================================================
+
 export const handler = async (event: any) => {
   console.log(
     "Summary generation triggered with records:",
@@ -71,28 +197,18 @@ export const handler = async (event: any) => {
         providerMap.set(intg.integration_id, intg.provider);
       }
 
-      // 2. Fetch ActivityEvents using pagination
+      // 2. Initialize Aggregators
+      const aggregators = new Map<string, ProviderAggregator>();
+      aggregators.set("SLACK", new SlackAggregator());
+      aggregators.set("GITHUB", new GitHubAggregator());
+      // For extensibility: adding placeholders for future providers
+      // aggregators.set("JIRA", new GenericProviderAggregator("Jira"));
+      // aggregators.set("NOTION", new GenericProviderAggregator("Notion"));
+
+      // 3. Fetch ActivityEvents using pagination
       let page = 0;
       const pageSize = 1000;
       let hasMore = true;
-
-      const slackChannels = new Map<
-        string,
-        {
-          name: string;
-          messagesCount: number;
-          participants: Set<string>;
-          snippets: string[];
-        }
-      >();
-      const githubStats = {
-        commits: 0,
-        prsOpened: 0,
-        prsMerged: 0,
-        issuesClosed: 0,
-        repos: new Set<string>(),
-      };
-
       let totalEventsProcessed = 0;
 
       while (hasMore) {
@@ -118,44 +234,20 @@ export const handler = async (event: any) => {
           const provider = providerMap.get(ev.integration_id);
           const p = ev.payload;
 
-          if (!p) continue;
+          if (!p || !provider) continue;
 
-          if (provider === "SLACK") {
-            const channelId = p.channelId;
-            if (channelId) {
-              if (!slackChannels.has(channelId)) {
-                slackChannels.set(channelId, {
-                  name: p.channelName || "unknown",
-                  messagesCount: 0,
-                  participants: new Set(),
-                  snippets: [],
-                });
-              }
-              const ch = slackChannels.get(channelId)!;
-              const messages = p.messages || [];
-              ch.messagesCount += messages.length;
-              for (const msg of messages) {
-                if (msg.user) ch.participants.add(msg.user);
-                // Extract a few sample snippets for context
-                if (ch.snippets.length < 5 && msg.text) {
-                  ch.snippets.push(
-                    `${msg.user}: ${msg.text.substring(0, 150)}`,
-                  );
-                }
-              }
+          // Dispatch payload to appropriate aggregator
+          const aggregator = aggregators.get(provider);
+          if (aggregator) {
+            aggregator.aggregate(p);
+          } else {
+            // Fallback for unknown provider
+            let generic = aggregators.get(`GENERIC_${provider}`);
+            if (!generic) {
+              generic = new GenericProviderAggregator(provider);
+              aggregators.set(`GENERIC_${provider}`, generic);
             }
-          } else if (provider === "GITHUB") {
-            if (p.repository) {
-              githubStats.repos.add(
-                `${p.repository.owner}/${p.repository.repo}`,
-              );
-            }
-            if (p.stats) {
-              githubStats.commits += p.stats.totalCommits || 0;
-              githubStats.prsOpened += p.stats.totalPRsOpened || 0;
-              githubStats.prsMerged += p.stats.totalPRsMerged || 0;
-              githubStats.issuesClosed += p.stats.totalIssuesClosed || 0;
-            }
+            generic.aggregate(p);
           }
         }
 
@@ -175,26 +267,17 @@ export const handler = async (event: any) => {
         continue;
       }
 
-      // 3. Build Prompt Template
+      // 4. Build Prompt Template
       let prompt = `You are an AI assistant. Generate a professional and concise daily summary of work activities based on the following aggregated data.\n\n`;
 
-      if (githubStats.repos.size > 0) {
-        prompt += `GitHub Activity:\n- Repositories touched: ${Array.from(githubStats.repos).join(", ")}\n- Commits made: ${githubStats.commits}\n- Pull Requests Opened: ${githubStats.prsOpened}\n- Pull Requests Merged: ${githubStats.prsMerged}\n- Issues Closed: ${githubStats.issuesClosed}\n\n`;
-      }
-
-      if (slackChannels.size > 0) {
-        prompt += `Slack Activity:\n`;
-        for (const [_, ch] of slackChannels.entries()) {
-          prompt += `- Channel #${ch.name}: ${ch.messagesCount} messages involving ${Array.from(ch.participants).join(", ")}.\n`;
-          if (ch.snippets.length > 0) {
-            prompt += `  Sample conversations:\n    ${ch.snippets.join("\n    ")}\n`;
-          }
-        }
+      // Append prompts from all active aggregators
+      for (const aggregator of aggregators.values()) {
+        prompt += aggregator.getPrompt();
       }
 
       prompt += `\nPlease provide a concise, natural-language summary (1-2 paragraphs) detailing what was accomplished, reviewed, or discussed today. Do not hallucinate information not present in the data.`;
 
-      // 4. Call Bedrock
+      // 5. Call Bedrock
       const bedrockReq = {
         modelId: "anthropic.claude-3-haiku-20240307-v1:0", // Using fast/cost-effective Claude 3 Haiku
         contentType: "application/json",
@@ -212,8 +295,7 @@ export const handler = async (event: any) => {
       const result = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
       const summaryText = result.content[0].text;
 
-      // 5. Write to Summary table
-      // Note: Cast chain to 'any' to bypass strict schema types if not defined perfectly
+      // 6. Write to Summary table
       const { error: insertError } = await (
         supabase.from("Summary") as any
       ).insert({
