@@ -9,76 +9,6 @@ interface IntegrationConnection {
   integration_id: string;
   user_id: string;
   provider: "GITHUB" | "SLACK";
-  token_expiration: string | null;
-  access_token: string;
-  refresh_token: string | null;
-}
-
-async function refreshSlackToken(refreshToken: string) {
-  const clientId = process.env.SLACK_CLIENT_ID;
-  const clientSecret = process.env.SLACK_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing Slack credentials for token refresh");
-  }
-
-  const response = await fetch("https://slack.com/api/oauth.v2.access", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
-
-  const data = (await response.json()) as any;
-  if (!data.ok) {
-    throw new Error(`Slack token refresh failed: ${data.error}`);
-  }
-
-  return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token, // might be unchanged or new
-    expires_in: data.expires_in, // in seconds
-  };
-}
-
-async function refreshGitHubToken(refreshToken: string) {
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing GitHub credentials for token refresh");
-  }
-
-  const response = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-  });
-
-  const data = (await response.json()) as any;
-  if (data.error) {
-    throw new Error(`GitHub token refresh failed: ${data.error_description}`);
-  }
-
-  return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_in: data.expires_in,
-  };
 }
 
 exports.handler = async (event: any) => {
@@ -95,7 +25,7 @@ exports.handler = async (event: any) => {
     // 1. Fetch IntegrationConnections
     const { data: connections, error } = await supabase
       .from("IntegrationConnection")
-      .select("*")
+      .select("integration_id, user_id, provider")
       .eq("user_id", userId);
 
     if (error) {
@@ -118,66 +48,6 @@ exports.handler = async (event: any) => {
         `Processing integration ${integration.provider} (${integration.integration_id})`,
       );
 
-      // Check if expired
-      if (
-        integration.token_expiration &&
-        new Date(integration.token_expiration) <= new Date()
-      ) {
-        console.log(
-          `Token expired for ${integration.provider}, attempting refresh...`,
-        );
-
-        if (!integration.refresh_token) {
-          console.error(
-            `Cannot refresh token for ${integration.provider}: No refresh_token available.`,
-          );
-          continue;
-        }
-
-        try {
-          let refreshResult;
-          if (integration.provider === "SLACK") {
-            refreshResult = await refreshSlackToken(integration.refresh_token);
-          } else if (integration.provider === "GITHUB") {
-            refreshResult = await refreshGitHubToken(integration.refresh_token);
-          } else {
-            console.warn(
-              `Token refresh not implemented for provider ${integration.provider}`,
-            );
-            continue;
-          }
-
-          const newExpiration = refreshResult.expires_in
-            ? new Date(
-                Date.now() + refreshResult.expires_in * 1000,
-              ).toISOString()
-            : null;
-
-          // Update DB
-          const { error: updateError } = await (
-            supabase.from("IntegrationConnection") as any
-          )
-            .update({
-              access_token: refreshResult.access_token,
-              refresh_token: refreshResult.refresh_token,
-              token_expiration: newExpiration,
-            })
-            .eq("integration_id", integration.integration_id);
-
-          if (updateError) {
-            console.error(
-              "Failed to update IntegrationConnection with refreshed tokens:",
-              updateError,
-            );
-          } else {
-            console.log("Successfully refreshed and updated token.");
-          }
-        } catch (refreshErr) {
-          console.error("Token refresh failed:", refreshErr);
-          continue; // Skip this integration if we can't refresh
-        }
-      }
-
       // Call the respective Lambda function
       try {
         if (integration.provider === "SLACK") {
@@ -186,6 +56,7 @@ exports.handler = async (event: any) => {
 
           const invokeCmd = new InvokeCommand({
             FunctionName: lambdaArn,
+            InvocationType: "Event",
             Payload: JSON.stringify({
               startDate: startDateISO,
               endDate,
@@ -195,28 +66,26 @@ exports.handler = async (event: any) => {
           });
 
           await lambdaClient.send(invokeCmd);
-          console.log("Successfully invoked Slack lambda");
+          console.log("Successfully invoked Slack lambda asynchronously");
         } else if (integration.provider === "GITHUB") {
           const lambdaArn = process.env.GITHUB_LAMBDA_ARN;
           if (!lambdaArn) throw new Error("GITHUB_LAMBDA_ARN is not defined");
 
-          // For github lambda, it expects APIGatewayProxyEvent
           const invokeCmd = new InvokeCommand({
             FunctionName: lambdaArn,
+            InvocationType: "Event",
             Payload: JSON.stringify({
-              body: JSON.stringify({
-                userId: integration.user_id,
-                integrationId: integration.integration_id,
-                owner: "TODO_OWNER", // Note: Github params require owner and repo
-                repo: "TODO_REPO",
-                startDate: startDateISO,
-                endDate,
-              }),
+              userId: integration.user_id,
+              integrationId: integration.integration_id,
+              owner: "TODO_OWNER", // Note: Github params require owner and repo
+              repo: "TODO_REPO",
+              startDate: startDateISO,
+              endDate,
             }),
           });
 
           await lambdaClient.send(invokeCmd);
-          console.log("Successfully invoked GitHub lambda");
+          console.log("Successfully invoked GitHub lambda asynchronously");
         }
       } catch (invokeErr) {
         console.error(
@@ -241,9 +110,10 @@ exports.handler = async (event: any) => {
           new SendMessageCommand({
             QueueUrl: summaryQueueUrl,
             MessageBody: JSON.stringify(summaryMsg),
+            DelaySeconds: 300, // Wait 5 minutes to allow async integration lambdas to finish
           }),
         );
-        console.log(`Sent summary job for user ${userId} to SummaryQueue`);
+        console.log(`Sent summary job for user ${userId} to SummaryQueue with 300s delay`);
       } catch (sqsErr) {
         console.error(
           `Failed to send summary job to SQS for user ${userId}:`,
@@ -255,3 +125,4 @@ exports.handler = async (event: any) => {
     }
   }
 };
+

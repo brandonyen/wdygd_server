@@ -164,8 +164,3 @@ Requests the generation of a new summary. This puts a job onto an SQS queue whic
   }
   ```
 
----
-
-## Data Fetching / Internal Endpoints (`/github`, `/slack`)
-
-The `/github` and `/slack` endpoints exposed via POST are intended for **internal orchestration** by the `IngestionLambda`. While exposed on API Gateway, they should generally not be called by the frontend directly. They require heavy payloads (`startDate`, `endDate`, `integrationId`, `userId`) and process vast amounts of background data into the `ActivityEvent` database.

@@ -239,15 +239,7 @@ export class WdygdServerStack extends cdk.Stack {
       allowHeaders: ["Content-Type", "Authorization"],
     };
 
-    const githubResource = endpoint.root.addResource("github", {
-      defaultCorsPreflightOptions: commonCorsOptions,
-    });
-    githubResource.addMethod("POST", new apigw.LambdaIntegration(githubFn));
 
-    const slackResource = endpoint.root.addResource("slack", {
-      defaultCorsPreflightOptions: commonCorsOptions,
-    });
-    slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
 
     const auth = endpoint.root.addResource("auth");
 
