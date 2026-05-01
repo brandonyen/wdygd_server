@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "../../utils/get-supabase-client";
 import { randomUUID } from "crypto";
 
 // ============================================================================
@@ -412,16 +412,7 @@ export async function handler(
     const owner = params.owner || "TODO_OWNER";
     const repo = params.repo || "TODO_REPO";
 
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error(
-        "Missing SUPABASE_URL or SUPABASE_KEY environment variables",
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = await getSupabase();
 
     // Resolve GitHub token (either direct or via userId lookup)
     let githubToken: string;
@@ -429,7 +420,7 @@ export async function handler(
     if (params.githubToken) {
       githubToken = params.githubToken;
     } else if (params.userId && params.integrationId) {
-      const { data: integration, error: integrationError } = await supabase
+      const { data: integration, error: integrationError } = await (supabase as any)
         .from("IntegrationConnection")
         .select("access_token")
         .eq("integration_id", params.integrationId)
@@ -554,31 +545,22 @@ export async function handler(
     };
 
     if (params.userId && params.integrationId) {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_KEY;
+      const activityEvent = {
+        event_id: randomUUID(),
+        user_id: params.userId,
+        integration_id: params.integrationId,
+        timestamp: new Date().toISOString(),
+        payload: summaryData,
+      };
 
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        
-        const activityEvent = {
-          event_id: randomUUID(),
-          user_id: params.userId,
-          integration_id: params.integrationId,
-          timestamp: new Date().toISOString(),
-          payload: summaryData,
-        };
+      const { error: insertError } = await (supabase as any)
+        .from("ActivityEvent")
+        .insert([activityEvent]);
 
-        const { error: insertError } = await supabase
-          .from("ActivityEvent")
-          .insert([activityEvent]);
-
-        if (insertError) {
-          console.error("Failed to write GitHub activity event to DB:", insertError);
-        } else {
-          console.log("Wrote GitHub activity event to DB successfully");
-        }
+      if (insertError) {
+        console.error("Failed to write GitHub activity event to DB:", insertError);
       } else {
-        console.warn("Missing Supabase credentials, skipping ActivityEvent write");
+        console.log("Wrote GitHub activity event to DB successfully");
       }
     }
 
