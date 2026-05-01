@@ -5,10 +5,8 @@ import { getSupabase } from "../../utils/get-supabase-client";
 // ============================================================================
 
 interface GitHubRequestParams {
-  // Authentication: provide either githubToken OR userId (for OAuth)
-  githubToken?: string;
-  userId?: string;
-  integrationId?: string;
+  userId: string;
+  integrationId: string;
   // Repository info
   owner?: string;
   repo?: string;
