@@ -27,24 +27,6 @@ Retrieves the user configuration based on their email.
   ```
 - **Error Responses:** `400 Bad Request` (Missing email), `404 Not Found` (User not found).
 
-### **POST `/user-config`**
-
-Creates a new user configuration entry if one does not exist for the given email.
-
-- **Body:**
-  ```json
-  {
-    "email": "user@example.com"
-  }
-  ```
-- **Response (201 Created / 200 OK if exists):**
-  ```json
-  {
-    "message": "User config created successfully",
-    "data": [{ ...user_object... }]
-  }
-  ```
-
 ---
 
 ## 2. Integration Connections (Manual)
