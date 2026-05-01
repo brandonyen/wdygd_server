@@ -155,6 +155,14 @@ export class WdygdServerStack extends cdk.Stack {
       defaultIntegration: new apigw.LambdaIntegration(fn),
     });
 
+    const authorizer = new apigw.CognitoUserPoolsAuthorizer(
+      this,
+      "WdygdAuthorizer",
+      {
+        cognitoUserPools: [userPool],
+      },
+    );
+
     // Add catch-all routes to mimic previous LambdaRestApi behavior
     endpoint.root.addMethod("ANY");
     const proxyResource = endpoint.root.addResource("{proxy+}");
@@ -380,10 +388,18 @@ export class WdygdServerStack extends cdk.Stack {
     userConfigResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(createUserConfigLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
     userConfigResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(createUserConfigLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
 
     // Create Integration Connection Lambda
@@ -418,10 +434,18 @@ export class WdygdServerStack extends cdk.Stack {
     integrationConnectionResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
     integrationConnectionResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(createIntegrationConnectionLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
 
     // Summary API Lambda
@@ -455,10 +479,18 @@ export class WdygdServerStack extends cdk.Stack {
     summaryResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(summaryApiLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
     summaryResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(summaryApiLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
     );
 
     // Outputs
