@@ -33,7 +33,7 @@ async function refreshSlackToken(refreshToken: string) {
     }),
   });
 
-  const data = await response.json() as any;
+  const data = (await response.json()) as any;
   if (!data.ok) {
     throw new Error(`Slack token refresh failed: ${data.error}`);
   }
@@ -67,7 +67,7 @@ async function refreshGitHubToken(refreshToken: string) {
     }),
   });
 
-  const data = await response.json() as any;
+  const data = (await response.json()) as any;
   if (data.error) {
     throw new Error(`GitHub token refresh failed: ${data.error_description}`);
   }
@@ -97,7 +97,10 @@ exports.handler = async (event: any) => {
       .eq("user_id", userId);
 
     if (error) {
-      console.error(`Failed to fetch integration connections for user ${userId}:`, error);
+      console.error(
+        `Failed to fetch integration connections for user ${userId}:`,
+        error,
+      );
       continue;
     }
 
@@ -109,16 +112,25 @@ exports.handler = async (event: any) => {
     const integrations = connections as IntegrationConnection[];
 
     for (const integration of integrations) {
-      console.log(`Processing integration ${integration.provider} (${integration.integration_id})`);
+      console.log(
+        `Processing integration ${integration.provider} (${integration.integration_id})`,
+      );
 
       let accessToken = integration.access_token;
-      
+
       // Check if expired
-      if (integration.token_expiration && new Date(integration.token_expiration) <= new Date()) {
-        console.log(`Token expired for ${integration.provider}, attempting refresh...`);
-        
+      if (
+        integration.token_expiration &&
+        new Date(integration.token_expiration) <= new Date()
+      ) {
+        console.log(
+          `Token expired for ${integration.provider}, attempting refresh...`,
+        );
+
         if (!integration.refresh_token) {
-          console.error(`Cannot refresh token for ${integration.provider}: No refresh_token available.`);
+          console.error(
+            `Cannot refresh token for ${integration.provider}: No refresh_token available.`,
+          );
           continue;
         }
 
@@ -129,17 +141,23 @@ exports.handler = async (event: any) => {
           } else if (integration.provider === "GITHUB") {
             refreshResult = await refreshGitHubToken(integration.refresh_token);
           } else {
-            console.warn(`Token refresh not implemented for provider ${integration.provider}`);
+            console.warn(
+              `Token refresh not implemented for provider ${integration.provider}`,
+            );
             continue;
           }
 
           accessToken = refreshResult.access_token;
-          const newExpiration = refreshResult.expires_in 
-            ? new Date(Date.now() + refreshResult.expires_in * 1000).toISOString()
+          const newExpiration = refreshResult.expires_in
+            ? new Date(
+                Date.now() + refreshResult.expires_in * 1000,
+              ).toISOString()
             : null;
 
           // Update DB
-          const { error: updateError } = await (supabase.from("IntegrationConnection") as any)
+          const { error: updateError } = await (
+            supabase.from("IntegrationConnection") as any
+          )
             .update({
               access_token: refreshResult.access_token,
               refresh_token: refreshResult.refresh_token,
@@ -148,11 +166,13 @@ exports.handler = async (event: any) => {
             .eq("integration_id", integration.integration_id);
 
           if (updateError) {
-            console.error("Failed to update IntegrationConnection with refreshed tokens:", updateError);
+            console.error(
+              "Failed to update IntegrationConnection with refreshed tokens:",
+              updateError,
+            );
           } else {
             console.log("Successfully refreshed and updated token.");
           }
-
         } catch (refreshErr) {
           console.error("Token refresh failed:", refreshErr);
           continue; // Skip this integration if we can't refresh
@@ -172,7 +192,7 @@ exports.handler = async (event: any) => {
               endDate,
               userId: integration.user_id,
               integrationId: integration.integration_id,
-            })
+            }),
           });
 
           await lambdaClient.send(invokeCmd);
@@ -188,18 +208,21 @@ exports.handler = async (event: any) => {
               body: JSON.stringify({
                 userId: integration.user_id,
                 owner: "TODO_OWNER", // Note: Github params require owner and repo
-                repo: "TODO_REPO", 
+                repo: "TODO_REPO",
                 startDate: startDateISO,
                 endDate,
-              })
-            })
+              }),
+            }),
           });
 
           await lambdaClient.send(invokeCmd);
           console.log("Successfully invoked GitHub lambda");
         }
       } catch (invokeErr) {
-        console.error(`Failed to invoke lambda for ${integration.provider}:`, invokeErr);
+        console.error(
+          `Failed to invoke lambda for ${integration.provider}:`,
+          invokeErr,
+        );
       }
     }
   }

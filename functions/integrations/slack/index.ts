@@ -1,13 +1,6 @@
 import { WebClient } from "@slack/web-api";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "../../utils/get-supabase-client";
 import { randomUUID } from "crypto";
-
-interface SlackEvent {
-  startDate: string;
-  endDate: string;
-  userId: string;
-  integrationId: string;
-}
 
 interface MessageInfo {
   user: string;
@@ -95,24 +88,19 @@ export const handler = async (event: any) => {
   const payload = event.body ? JSON.parse(event.body) : event;
   const { startDate, endDate, userId, integrationId } = payload;
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Missing SUPABASE_URL or SUPABASE_KEY environment variables",
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = await getSupabase();
 
   // Fetch access token from IntegrationConnection table
-  const { data: integration, error: integrationError } = await supabase
+  const { data: integrationData, error: integrationError } = await (
+    supabase as any
+  )
     .from("IntegrationConnection")
     .select("access_token")
     .eq("integration_id", integrationId)
     .eq("user_id", userId)
     .single();
+
+  const integration = integrationData as any;
 
   if (integrationError || !integration?.access_token) {
     throw new Error(
@@ -230,7 +218,7 @@ export const handler = async (event: any) => {
     }));
 
     if (activityEvents.length > 0) {
-      const { error: insertError } = await supabase
+      const { error: insertError } = await (supabase as any)
         .from("ActivityEvent")
         .insert(activityEvents);
 

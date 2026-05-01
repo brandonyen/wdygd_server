@@ -10,24 +10,37 @@ exports.handler = async (event: any) => {
 
     if (httpMethod === "POST") {
       const body = JSON.parse(event.body || "{}");
-      const { user_id, provider, token_expiration, access_token, refresh_token } = body;
+      const {
+        user_id,
+        provider,
+        token_expiration,
+        access_token,
+        refresh_token,
+      } = body;
 
       if (!user_id || !provider || !access_token) {
         return {
           statusCode: 400,
-          body: JSON.stringify({ message: "Missing required fields (user_id, provider, access_token)" }),
+          body: JSON.stringify({
+            message:
+              "Missing required fields (user_id, provider, access_token)",
+          }),
         };
       }
 
       const integration_id = randomUUID();
 
-      const { data, error } = await (supabase.from("IntegrationConnection") as any)
+      const { data, error } = await (
+        supabase.from("IntegrationConnection") as any
+      )
         .insert([
           {
             integration_id,
             user_id,
             provider,
-            token_expiration: token_expiration ? new Date(token_expiration).toISOString() : null,
+            token_expiration: token_expiration
+              ? new Date(token_expiration).toISOString()
+              : null,
             access_token,
             refresh_token,
           },

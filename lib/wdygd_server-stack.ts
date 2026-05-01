@@ -1,8 +1,8 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
-import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -52,29 +52,46 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Fetch Supabase Credentials from Secrets Manager
-    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+    // Fetch Credentials from Secrets Manager
+    const appSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
-      "SupabaseSecret",
+      "AppSecret",
       "prod/wdygd",
     );
 
-    // Environment Variables resolved via CloudFormation dynamic references
-    const defaultEnvironment = {
-      SUPABASE_URL: supabaseSecret
+    const supabaseEnv = {
+      SUPABASE_URL: appSecret
         .secretValueFromJson("SUPABASE_URL")
         .unsafeUnwrap(),
-      SUPABASE_KEY: supabaseSecret
+      SUPABASE_KEY: appSecret
         .secretValueFromJson("SUPABASE_KEY")
         .unsafeUnwrap(),
-      GITHUB_CLIENT_ID: supabaseSecret
+    };
+
+    const githubOAuthEnv = {
+      GITHUB_CLIENT_ID: appSecret
         .secretValueFromJson("GITHUB_CLIENT_ID")
         .unsafeUnwrap(),
-      GITHUB_CLIENT_SECRET: supabaseSecret
+      GITHUB_CLIENT_SECRET: appSecret
         .secretValueFromJson("GITHUB_CLIENT_SECRET")
         .unsafeUnwrap(),
-      GITHUB_REDIRECT_URI: supabaseSecret
+      GITHUB_REDIRECT_URI: appSecret
         .secretValueFromJson("GITHUB_REDIRECT_URI")
+        .unsafeUnwrap(),
+    };
+
+    const slackOAuthEnv = {
+      SLACK_CLIENT_ID: appSecret
+        .secretValueFromJson("SLACK_CLIENT_ID")
+        .unsafeUnwrap(),
+      SLACK_CLIENT_SECRET: appSecret
+        .secretValueFromJson("SLACK_CLIENT_SECRET")
+        .unsafeUnwrap(),
+      SLACK_REDIRECT_URI: appSecret
+        .secretValueFromJson("SLACK_REDIRECT_URI")
+        .unsafeUnwrap(),
+      STATE_SECRET: appSecret
+        .secretValueFromJson("STATE_SECRET")
         .unsafeUnwrap(),
     };
 
@@ -90,27 +107,30 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
         USER_POOL_ID: userPool.userPoolId,
       },
     });
 
-    const githubFn = new lambdaNode.NodejsFunction(this, "GitHubIntegrationFn", {
-      entry: path.join(
-        __dirname,
-        "..",
-        "functions/integrations/github/index.ts",
-      ),
-      handler: "handler",
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      timeout: cdk.Duration.seconds(300),
-      bundling: {
-        externalModules: ["@aws-sdk/*"],
+    const githubFn = new lambdaNode.NodejsFunction(
+      this,
+      "GitHubIntegrationFn",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/integrations/github/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          ...supabaseEnv,
+        },
       },
-      environment: {
-        ...defaultEnvironment,
-      },
-    });
+    );
 
     const githubOAuthFn = new lambdaNode.NodejsFunction(this, "GitHubOAuthFn", {
       entry: path.join(
@@ -125,7 +145,8 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
+        ...githubOAuthEnv,
       },
     });
 
@@ -139,100 +160,24 @@ export class WdygdServerStack extends cdk.Stack {
     const proxyResource = endpoint.root.addResource("{proxy+}");
     proxyResource.addMethod("ANY");
 
-    // --- Slack OAuth: /oauth/slack/initiate ---
-    const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackOAuthInitiateFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/initiate.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_LATEST,
-        environment: {
-          SLACK_CLIENT_ID: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_ID")
-            .unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret
-            .secretValueFromJson("SLACK_REDIRECT_URI")
-            .unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret
-            .secretValueFromJson("STATE_SECRET")
-            .unsafeUnwrap(),
-        },
+    // --- Slack OAuth ---
+    const slackOAuthFn = new lambdaNode.NodejsFunction(this, "SlackOAuthFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/slack/oauth.ts",
+      ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(30),
+      environment: {
+        ...supabaseEnv,
+        ...slackOAuthEnv,
       },
-    );
-
-    // --- Slack OAuth: /oauth/slack/callback ---
-    const slackOAuthCallbackFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackOAuthCallbackFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/callback.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_LATEST,
-        timeout: cdk.Duration.seconds(30),
-        environment: {
-          SLACK_CLIENT_ID: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_ID")
-            .unsafeUnwrap(),
-          SLACK_CLIENT_SECRET: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_SECRET")
-            .unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret
-            .secretValueFromJson("SLACK_REDIRECT_URI")
-            .unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret
-            .secretValueFromJson("STATE_SECRET")
-            .unsafeUnwrap(),
-          ...defaultEnvironment,
-        },
-        bundling: {
-          externalModules: ["@aws-sdk/*"],
-        },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
       },
-    );
-
-    // --- Slack disconnect ---
-    const slackDisconnectFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackDisconnectFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/disconnect.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_LATEST,
-        environment: {
-          ...defaultEnvironment,
-        },
-        bundling: {
-          externalModules: ["@aws-sdk/*"],
-        },
-      },
-    );
-
-    // Routes: /oauth/slack/initiate, /oauth/slack/callback, DELETE /oauth/slack
-    const oauthResource = endpoint.root.addResource("oauth");
-    const slackOAuthResource = oauthResource.addResource("slack");
-    slackOAuthResource
-      .addResource("initiate")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthInitiateFn));
-    slackOAuthResource
-      .addResource("callback")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
-    slackOAuthResource.addMethod(
-      "DELETE",
-      new apigw.LambdaIntegration(slackDisconnectFn),
-    );
+    });
 
     // --- Slack data-fetch lambda (invoked internally / on schedule) ---
     const slackFn = new lambdaNode.NodejsFunction(this, "SlackIntegrationFn", {
@@ -248,7 +193,7 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
       },
     });
 
@@ -259,6 +204,8 @@ export class WdygdServerStack extends cdk.Stack {
     slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
 
     const auth = endpoint.root.addResource("auth");
+
+    // GitHub Auth routes
     const authGithub = auth.addResource("github");
     authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
     authGithub.addMethod("DELETE", new apigw.LambdaIntegration(githubOAuthFn));
@@ -268,6 +215,18 @@ export class WdygdServerStack extends cdk.Stack {
     authGithub
       .addResource("status")
       .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+
+    // Slack Auth routes
+    const authSlack = auth.addResource("slack");
+    authSlack.addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack.addMethod("DELETE", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack
+      .addResource("callback")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack
+      .addResource("status")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 1 hour)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
       schedule: events.Schedule.rate(cdk.Duration.hours(1)),
@@ -288,23 +247,27 @@ export class WdygdServerStack extends cdk.Stack {
     });
 
     // Target lambda for the scheduler
-    const schedulerLambda = new lambdaNode.NodejsFunction(this, "SchedulerLambda", {
-      entry: path.join(
-        __dirname,
-        "..",
-        "functions/scheduler-lambda/index.ts",
-      ),
-      handler: "handler",
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      timeout: cdk.Duration.seconds(300),
-      environment: {
-        ...defaultEnvironment,
-        INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
+    const schedulerLambda = new lambdaNode.NodejsFunction(
+      this,
+      "SchedulerLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/scheduler-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        environment: {
+          ...supabaseEnv,
+          INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
+        },
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
       },
-      bundling: {
-        externalModules: ["@aws-sdk/*"],
-      },
-    });
+    );
 
     schedulerRule.addTarget(new targets.LambdaFunction(schedulerLambda));
 
@@ -312,25 +275,31 @@ export class WdygdServerStack extends cdk.Stack {
     ingestionQueue.grantSendMessages(schedulerLambda);
 
     // Ingestion Lambda
-    const ingestionLambda = new lambdaNode.NodejsFunction(this, "IngestionLambda", {
-      entry: path.join(
-        __dirname,
-        "..",
-        "functions/ingestion-lambda/index.ts",
-      ),
-      handler: "handler",
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      timeout: cdk.Duration.seconds(300),
-      bundling: {
-        externalModules: ["@aws-sdk/*"],
+    const ingestionLambda = new lambdaNode.NodejsFunction(
+      this,
+      "IngestionLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/ingestion-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(300),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          ...supabaseEnv,
+          ...githubOAuthEnv,
+          ...slackOAuthEnv,
+          SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
+          GITHUB_LAMBDA_ARN: githubFn.functionArn,
+          SLACK_LAMBDA_ARN: slackFn.functionArn,
+        },
       },
-      environment: {
-        ...defaultEnvironment,
-        SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
-        GITHUB_LAMBDA_ARN: githubFn.functionArn,
-        SLACK_LAMBDA_ARN: slackFn.functionArn,
-      },
-    });
+    );
 
     // Grant Ingestion Lambda permission to invoke the integration lambdas
     githubFn.grantInvoke(ingestionLambda);
@@ -343,11 +312,7 @@ export class WdygdServerStack extends cdk.Stack {
     summaryQueue.grantSendMessages(ingestionLambda);
     // Summary Lambda
     const summaryLambda = new lambdaNode.NodejsFunction(this, "SummaryLambda", {
-      entry: path.join(
-        __dirname,
-        "..",
-        "functions/summary-lambda/index.ts",
-      ),
+      entry: path.join(__dirname, "..", "functions/summary-lambda/index.ts"),
       handler: "handler",
       runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
@@ -355,7 +320,7 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
       },
     });
 
@@ -387,7 +352,7 @@ export class WdygdServerStack extends cdk.Stack {
           externalModules: ["@aws-sdk/*"],
         },
         environment: {
-          ...defaultEnvironment,
+          ...supabaseEnv,
         },
       },
     );
@@ -423,7 +388,7 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(300),
         environment: {
-          ...defaultEnvironment,
+          ...supabaseEnv,
         },
         bundling: {
           externalModules: ["@aws-sdk/*"],
@@ -468,14 +433,8 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
       value: slackFn.functionArn,
     });
-    new cdk.CfnOutput(this, "SlackOAuthInitiateArn", {
-      value: slackOAuthInitiateFn.functionArn,
-    });
-    new cdk.CfnOutput(this, "SlackOAuthCallbackArn", {
-      value: slackOAuthCallbackFn.functionArn,
-    });
-    new cdk.CfnOutput(this, "SlackDisconnectArn", {
-      value: slackDisconnectFn.functionArn,
+    new cdk.CfnOutput(this, "SlackOAuthArn", {
+      value: slackOAuthFn.functionArn,
     });
   }
 }

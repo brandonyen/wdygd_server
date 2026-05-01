@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { getTokenStore, type StoredToken } from "./token-store.js";
-// Note: StoredToken no longer includes githubUsername/githubUserId (stored in IntegrationConnection table)
+import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 // ============================================================================
 // Types
@@ -27,14 +27,20 @@ function getConfig() {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const redirectUri = process.env.GITHUB_REDIRECT_URI;
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
 
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error(
-      "Missing required environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_REDIRECT_URI",
-    );
+  if (
+    !clientId ||
+    !clientSecret ||
+    !redirectUri ||
+    !supabaseUrl ||
+    !supabaseKey
+  ) {
+    throw new Error("Missing required environment variables");
   }
 
-  return { clientId, clientSecret, redirectUri };
+  return { clientId, clientSecret, redirectUri, supabaseUrl, supabaseKey };
 }
 
 // ============================================================================
@@ -90,7 +96,7 @@ async function handleInitiate(
 async function handleCallback(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
-  const { clientId, clientSecret } = getConfig();
+  const { clientId, clientSecret, supabaseUrl, supabaseKey } = getConfig();
 
   const code = event.queryStringParameters?.code;
   const state = event.queryStringParameters?.state;
@@ -169,16 +175,65 @@ async function handleCallback(
 
   const userData = (await userResponse.json()) as GitHubUser;
 
-  // Store the token
-  const tokenStore = getTokenStore();
-  const storedToken: StoredToken = {
-    accessToken: tokenData.access_token,
-    refreshToken: null, // GitHub OAuth apps don't issue refresh tokens
-    tokenExpiration: null,
-    createdAt: new Date().toISOString(),
-  };
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const userId = stateData.userId;
 
-  await tokenStore.saveToken(stateData.userId, storedToken);
+  // Check if a GitHub connection already exists for this user
+  const { data: existing, error: checkError } = await supabase
+    .from("IntegrationConnection")
+    .select("integration_id")
+    .eq("user_id", userId)
+    .eq("provider", "GITHUB");
+
+  if (checkError) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Failed to check existing integration" }),
+    };
+  }
+
+  if (existing && existing.length > 0) {
+    // Update existing row
+    const integrationId = existing[0].integration_id;
+    const { error: updateError } = await supabase
+      .from("IntegrationConnection")
+      .update({
+        access_token: tokenData.access_token,
+        refresh_token: null,
+        token_expiration: null,
+      })
+      .eq("integration_id", integrationId);
+
+    if (updateError) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Failed to update integration connection",
+        }),
+      };
+    }
+  } else {
+    // Insert new row
+    const { error: insertError } = await supabase
+      .from("IntegrationConnection")
+      .insert({
+        integration_id: randomUUID(),
+        user_id: userId,
+        provider: "GITHUB",
+        access_token: tokenData.access_token,
+        refresh_token: null,
+        token_expiration: null,
+      });
+
+    if (insertError) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Failed to insert integration connection",
+        }),
+      };
+    }
+  }
 
   // Redirect to final URL or return success
   if (stateData.finalRedirectUrl) {
@@ -224,10 +279,16 @@ async function handleStatus(
     };
   }
 
-  const tokenStore = getTokenStore();
-  const token = await tokenStore.getToken(userId);
+  const { supabaseUrl, supabaseKey } = getConfig();
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-  if (!token) {
+  const { data: rows, error } = await supabase
+    .from("IntegrationConnection")
+    .select("created_at, token_expiration")
+    .eq("user_id", userId)
+    .eq("provider", "GITHUB");
+
+  if (error || !rows || rows.length === 0) {
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -236,12 +297,14 @@ async function handleStatus(
     };
   }
 
+  const token = rows[0];
+
   return {
     statusCode: 200,
     body: JSON.stringify({
       connected: true,
-      connectedAt: token.createdAt,
-      tokenExpiration: token.tokenExpiration,
+      connectedAt: token.created_at,
+      tokenExpiration: token.token_expiration,
     }),
   };
 }
@@ -262,8 +325,21 @@ async function handleDisconnect(
     };
   }
 
-  const tokenStore = getTokenStore();
-  await tokenStore.deleteToken(userId);
+  const { supabaseUrl, supabaseKey } = getConfig();
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { error } = await supabase
+    .from("IntegrationConnection")
+    .delete()
+    .eq("user_id", userId)
+    .eq("provider", "GITHUB");
+
+  if (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Failed to disconnect account" }),
+    };
+  }
 
   return {
     statusCode: 200,

@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from "@aws-sdk/client-secrets-manager";
 
 const secretClient = new SecretsManagerClient({});
 let supabaseClient: ReturnType<typeof createClient>;
@@ -21,7 +24,7 @@ export async function getSupabase() {
 
   const command = new GetSecretValueCommand({ SecretId: secretArn });
   const response = await secretClient.send(command);
-  
+
   if (!response.SecretString) {
     throw new Error("SecretString is empty");
   }
