@@ -78,34 +78,52 @@ export class WdygdServerStack extends cdk.Stack {
         .unsafeUnwrap(),
     };
 
-    const fn = new lambda.Function(this, "BackendApiFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/backend-entry-lambda"),
+    const fn = new lambdaNode.NodejsFunction(this, "BackendApiFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/backend-entry-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
         USER_POOL_ID: userPool.userPoolId,
       },
     });
 
-    const githubFn = new lambda.Function(this, "GitHubIntegrationFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/integrations/github"),
+    const githubFn = new lambdaNode.NodejsFunction(this, "GitHubIntegrationFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/github/index.ts",
       ),
-      timeout: cdk.Duration.seconds(30),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
+      environment: {
+        ...defaultEnvironment,
+      },
     });
 
-    const githubOAuthFn = new lambda.Function(this, "GitHubOAuthFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "oauth.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/integrations/github"),
+    const githubOAuthFn = new lambdaNode.NodejsFunction(this, "GitHubOAuthFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/github/oauth.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(30),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
       },
@@ -237,6 +255,9 @@ export class WdygdServerStack extends cdk.Stack {
     const github = endpoint.root.addResource("github");
     github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
 
+    const slackResource = endpoint.root.addResource("slack");
+    slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
+
     const auth = endpoint.root.addResource("auth");
     const authGithub = auth.addResource("github");
     authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
@@ -291,18 +312,29 @@ export class WdygdServerStack extends cdk.Stack {
     ingestionQueue.grantSendMessages(schedulerLambda);
 
     // Ingestion Lambda
-    const ingestionLambda = new lambda.Function(this, "IngestionLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/ingestion-lambda"),
+    const ingestionLambda = new lambdaNode.NodejsFunction(this, "IngestionLambda", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/ingestion-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
         SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
+        GITHUB_LAMBDA_ARN: githubFn.functionArn,
+        SLACK_LAMBDA_ARN: slackFn.functionArn,
       },
     });
+
+    // Grant Ingestion Lambda permission to invoke the integration lambdas
+    githubFn.grantInvoke(ingestionLambda);
+    slackFn.grantInvoke(ingestionLambda);
 
     // Add SQS event source for Ingestion Lambda
     ingestionLambda.addEventSource(new SqsEventSource(ingestionQueue));
@@ -310,13 +342,18 @@ export class WdygdServerStack extends cdk.Stack {
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
     // Summary Lambda
-    const summaryLambda = new lambda.Function(this, "SummaryLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/summary-lambda"),
+    const summaryLambda = new lambdaNode.NodejsFunction(this, "SummaryLambda", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/summary-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
       },

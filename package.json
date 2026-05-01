@@ -11,6 +11,7 @@
     "cdk": "cdk"
   },
   "devDependencies": {
+    "@aws-sdk/client-lambda": "^3.1040.0",
     "@aws-sdk/client-secrets-manager": "^3.1032.0",
     "@aws-sdk/client-sqs": "^3.1040.0",
     "@types/aws-lambda": "^8.10.161",

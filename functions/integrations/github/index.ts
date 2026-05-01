@@ -1,4 +1,3 @@
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { getTokenStore } from "./token-store.js";
 
 // ============================================================================
@@ -9,9 +8,10 @@ interface GitHubRequestParams {
   // Authentication: provide either githubToken OR userId (for OAuth)
   githubToken?: string;
   userId?: string;
+  integrationId?: string;
   // Repository info
-  owner: string;
-  repo: string;
+  owner?: string;
+  repo?: string;
   startDate: string; // ISO 8601 format (e.g., "2024-01-01T00:00:00Z")
   endDate: string; // ISO 8601 format
   includeIssues?: boolean;
@@ -391,28 +391,25 @@ async function fetchIssues(
 // ============================================================================
 
 export async function handler(
-  event: APIGatewayProxyEvent,
-): Promise<APIGatewayProxyResult> {
+  event: any,
+): Promise<any> {
   try {
     // Parse request body
-    if (!event.body) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Request body is required" }),
-      };
-    }
-
-    const params: GitHubRequestParams = JSON.parse(event.body);
+    const payload = event.body ? JSON.parse(event.body) : event;
+    const params: GitHubRequestParams = payload;
 
     // Validate required parameters
-    if (!params.owner || !params.repo || !params.startDate || !params.endDate) {
+    if (!params.startDate || !params.endDate) {
       return {
         statusCode: 400,
         body: JSON.stringify({
-          error: "Missing required fields: owner, repo, startDate, endDate",
+          error: "Missing required fields: startDate, endDate",
         }),
       };
     }
+
+    const owner = params.owner || "TODO_OWNER";
+    const repo = params.repo || "TODO_REPO";
 
     // Resolve GitHub token (either direct or via userId lookup)
     let githubToken: string;
@@ -468,30 +465,30 @@ export async function handler(
     // Fetch data from GitHub API
     const [commits, pullRequests, reviews, issues] = await Promise.all([
       fetchCommits(
-        params.owner,
-        params.repo,
+        owner,
+        repo,
         githubToken,
         params.startDate,
         params.endDate,
       ),
       fetchPullRequests(
-        params.owner,
-        params.repo,
+        owner,
+        repo,
         githubToken,
         params.startDate,
         params.endDate,
       ),
       fetchReviews(
-        params.owner,
-        params.repo,
+        owner,
+        repo,
         githubToken,
         params.startDate,
         params.endDate,
       ),
       params.includeIssues
         ? fetchIssues(
-            params.owner,
-            params.repo,
+            owner,
+            repo,
             githubToken,
             params.startDate,
             params.endDate,
@@ -507,8 +504,8 @@ export async function handler(
 
     const summaryData: GitHubSummaryData = {
       repository: {
-        owner: params.owner,
-        repo: params.repo,
+        owner: owner,
+        repo: repo,
       },
       dateRange: {
         startDate: params.startDate,

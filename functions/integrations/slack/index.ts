@@ -91,8 +91,9 @@ async function fetchChannelMessages(
   return messages;
 }
 
-export const handler = async (event: SlackEvent) => {
-  const { startDate, endDate, userId, integrationId } = event;
+export const handler = async (event: any) => {
+  const payload = event.body ? JSON.parse(event.body) : event;
+  const { startDate, endDate, userId, integrationId } = payload;
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_KEY;

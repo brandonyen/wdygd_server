@@ -16,18 +16,20 @@ exports.handler = async (event: any) => {
   try {
     const supabase = await getSupabase();
     
-    // Calculate the time 24 hours ago
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-    const oneDayAgoISO = oneDayAgo.toISOString();
+    // Calculate the time 24 hours ago for the start date
+    const endDate = new Date();
+    const endDateISO = endDate.toISOString();
+    const startDate = new Date(endDate.getTime());
+    startDate.setDate(startDate.getDate() - 1);
+    const startDateISO = startDate.toISOString();
 
-    console.log(`Checking for users with last_sync before ${oneDayAgoISO}`);
+    console.log(`Checking for users with last_sync before ${startDateISO}`);
 
     // Query users where last_sync < oneDayAgo
     const { data, error: fetchError } = await supabase
       .from("UserConfig")
       .select("*")
-      .lt("last_sync", oneDayAgoISO);
+      .lt("last_sync", startDateISO);
 
     if (fetchError) {
       console.error("Error fetching users from Supabase:", fetchError);
@@ -55,7 +57,9 @@ exports.handler = async (event: any) => {
       // Send to SQS
       const messageBody = JSON.stringify({
         userId: user.user_id,
-        timestamp: new Date().toISOString()
+        startDate: startDateISO,
+        endDate: endDateISO,
+        timestamp: endDateISO
       });
 
       const sendCommand = new SendMessageCommand({
@@ -67,15 +71,14 @@ exports.handler = async (event: any) => {
 
       // Update last_sync timestamp
       // Cast the chain as any to bypass strict type requirements if necessary
-      const nowISO = new Date().toISOString();
       const { error: updateError } = await (supabase.from("UserConfig") as any)
-        .update({ last_sync: nowISO })
+        .update({ last_sync: endDateISO })
         .eq("user_id", user.user_id);
 
       if (updateError) {
         console.error(`Failed to update last_sync for user ${user.email}:`, updateError);
       } else {
-        console.log(`Successfully updated last_sync for user ${user.email} to ${nowISO}`);
+        console.log(`Successfully updated last_sync for user ${user.email} to ${endDateISO}`);
       }
     }
 
