@@ -30,11 +30,7 @@ function getConfig() {
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const redirectUri = process.env.GITHUB_REDIRECT_URI;
 
-  if (
-    !clientId ||
-    !clientSecret ||
-    !redirectUri
-  ) {
+  if (!clientId || !clientSecret || !redirectUri) {
     throw new Error("Missing required environment variables");
   }
 

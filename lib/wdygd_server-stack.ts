@@ -239,8 +239,6 @@ export class WdygdServerStack extends cdk.Stack {
       allowHeaders: ["Content-Type", "Authorization"],
     };
 
-
-
     const auth = endpoint.root.addResource("auth");
 
     // GitHub Auth routes

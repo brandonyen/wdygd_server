@@ -111,7 +111,9 @@ exports.handler = async (event: any) => {
             DelaySeconds: 300, // Wait 5 minutes to allow async integration lambdas to finish
           }),
         );
-        console.log(`Sent summary job for user ${userId} to SummaryQueue with 300s delay`);
+        console.log(
+          `Sent summary job for user ${userId} to SummaryQueue with 300s delay`,
+        );
       } catch (sqsErr) {
         console.error(
           `Failed to send summary job to SQS for user ${userId}:`,
@@ -123,4 +125,3 @@ exports.handler = async (event: any) => {
     }
   }
 };
-

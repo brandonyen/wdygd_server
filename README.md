@@ -163,4 +163,3 @@ Requests the generation of a new summary. This puts a job onto an SQS queue whic
     "message": "Summary job queued successfully"
   }
   ```
-

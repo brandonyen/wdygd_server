@@ -171,7 +171,7 @@ export async function handler(event: any): Promise<any> {
 
       if (integrationError || !integration?.access_token) {
         throw new Error(
-          `GitHub account not connected. Failed to fetch integration credentials: ${integrationError?.message}`
+          `GitHub account not connected. Failed to fetch integration credentials: ${integrationError?.message}`,
         );
       }
 
@@ -185,7 +185,9 @@ export async function handler(event: any): Promise<any> {
         console.log("GitHub token expired, attempting refresh...");
 
         if (!integration.refresh_token) {
-          throw new Error("GitHub token expired and no refresh token available.");
+          throw new Error(
+            "GitHub token expired and no refresh token available.",
+          );
         }
 
         try {
@@ -223,7 +225,9 @@ export async function handler(event: any): Promise<any> {
         }
       }
     } else {
-      throw new Error("Authentication required: provide ('userId' and 'integrationId')");
+      throw new Error(
+        "Authentication required: provide ('userId' and 'integrationId')",
+      );
     }
 
     // Validate date format
@@ -245,14 +249,20 @@ export async function handler(event: any): Promise<any> {
     // 2. Fetch events paginated until we hit the start date or run out of pages
     const events: any[] = [];
     let page = 1;
-    
-    console.log(`Fetching events for user ${username} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
-    
+
+    console.log(
+      `Fetching events for user ${username} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
+
     while (true) {
-      const pageEvents = await githubFetch<any[]>(`/users/${username}/events`, githubToken, {
-        page: String(page),
-        per_page: "100",
-      });
+      const pageEvents = await githubFetch<any[]>(
+        `/users/${username}/events`,
+        githubToken,
+        {
+          page: String(page),
+          per_page: "100",
+        },
+      );
 
       if (!pageEvents || pageEvents.length === 0) break;
 
@@ -272,7 +282,7 @@ export async function handler(event: any): Promise<any> {
 
       // GitHub limits events API to 300 events or 90 days, so we break if we reach older events or run out of results
       if (reachedOlderEvents || pageEvents.length < 100) break;
-      
+
       page++;
     }
 
