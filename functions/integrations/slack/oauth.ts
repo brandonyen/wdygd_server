@@ -177,7 +177,7 @@ async function handleCallback(event: any): Promise<any> {
       id: string;
       access_token: string;
       refresh_token?: string;
-      token_expiration?: number;
+      expires_in?: number;
     };
   };
 
@@ -191,8 +191,8 @@ async function handleCallback(event: any): Promise<any> {
   const authedUser = tokenData.authed_user;
   const accessToken: string = authedUser.access_token;
   const refreshToken: string | null = authedUser.refresh_token ?? null;
-  const tokenExpiration: string | null = authedUser.token_expiration
-    ? new Date(authedUser.token_expiration * 1000).toISOString()
+  const tokenExpiration: string | null = authedUser.expires_in
+    ? new Date(Date.now() + authedUser.expires_in * 1000).toISOString()
     : null;
 
   // Upsert into Supabase IntegrationConnection

@@ -14,6 +14,39 @@ interface ChannelMessages {
   messages: MessageInfo[];
 }
 
+async function refreshSlackToken(refreshToken: string) {
+  const clientId = process.env.SLACK_CLIENT_ID;
+  const clientSecret = process.env.SLACK_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing Slack credentials for token refresh");
+  }
+
+  const response = await fetch("https://slack.com/api/oauth.v2.access", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  const data = (await response.json()) as any;
+  if (!data.ok) {
+    throw new Error(`Slack token refresh failed: ${data.error}`);
+  }
+
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token, // might be unchanged or new
+    expires_in: data.expires_in, // in seconds
+  };
+}
+
 async function fetchChannelMessages(
   client: WebClient,
   channelId: string,
@@ -94,7 +127,7 @@ export const handler = async (event: any) => {
     supabase as any
   )
     .from("IntegrationConnection")
-    .select("access_token")
+    .select("access_token, refresh_token, token_expiration")
     .eq("integration_id", integrationId)
     .eq("user_id", userId)
     .single();
@@ -107,7 +140,45 @@ export const handler = async (event: any) => {
     );
   }
 
-  const accessToken = integration.access_token;
+  let accessToken = integration.access_token;
+
+  if (
+    integration.token_expiration &&
+    new Date(integration.token_expiration) <= new Date()
+  ) {
+    console.log("Slack token expired, attempting refresh...");
+
+    if (!integration.refresh_token) {
+      throw new Error("Slack token expired and no refresh token available.");
+    }
+
+    const refreshResult = await refreshSlackToken(integration.refresh_token);
+    accessToken = refreshResult.access_token;
+
+    const newExpiration = refreshResult.expires_in
+      ? new Date(Date.now() + refreshResult.expires_in * 1000).toISOString()
+      : null;
+
+    // Update DB with new token
+    const { error: updateError } = await (supabase as any)
+      .from("IntegrationConnection")
+      .update({
+        access_token: refreshResult.access_token,
+        refresh_token: refreshResult.refresh_token,
+        token_expiration: newExpiration,
+      })
+      .eq("integration_id", integrationId);
+
+    if (updateError) {
+      console.error(
+        "Failed to update IntegrationConnection with refreshed Slack token:",
+        updateError,
+      );
+    } else {
+      console.log("Successfully refreshed and updated Slack token.");
+    }
+  }
+
   const client = new WebClient(accessToken);
 
   // Get the Slack user ID associated with this token

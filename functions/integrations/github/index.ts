@@ -84,6 +84,44 @@ interface GitHubSummaryData {
 }
 
 // ============================================================================
+// Token Management
+// ============================================================================
+
+async function refreshGitHubToken(refreshToken: string) {
+  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing GitHub credentials for token refresh");
+  }
+
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  const data = (await response.json()) as any;
+  if (data.error) {
+    throw new Error(`GitHub token refresh failed: ${data.error_description}`);
+  }
+
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_in: data.expires_in,
+  };
+}
+
+// ============================================================================
 // GitHub API Client
 // ============================================================================
 
@@ -417,7 +455,7 @@ export async function handler(event: any): Promise<any> {
         supabase as any
       )
         .from("IntegrationConnection")
-        .select("access_token")
+        .select("access_token, refresh_token, token_expiration")
         .eq("integration_id", params.integrationId)
         .eq("user_id", params.userId)
         .single();
@@ -433,6 +471,64 @@ export async function handler(event: any): Promise<any> {
       }
 
       githubToken = integration.access_token;
+
+      // Check if token needs to be refreshed
+      if (
+        integration.token_expiration &&
+        new Date(integration.token_expiration) <= new Date()
+      ) {
+        console.log("GitHub token expired, attempting refresh...");
+
+        if (!integration.refresh_token) {
+          return {
+            statusCode: 401,
+            body: JSON.stringify({
+              error: "GitHub token expired and no refresh token available.",
+              authRequired: true,
+            }),
+          };
+        }
+
+        try {
+          const refreshResult = await refreshGitHubToken(
+            integration.refresh_token,
+          );
+          githubToken = refreshResult.access_token;
+          const newExpiration = refreshResult.expires_in
+            ? new Date(
+                Date.now() + refreshResult.expires_in * 1000,
+              ).toISOString()
+            : null;
+
+          // Update DB with new token
+          const { error: updateError } = await (supabase as any)
+            .from("IntegrationConnection")
+            .update({
+              access_token: refreshResult.access_token,
+              refresh_token: refreshResult.refresh_token,
+              token_expiration: newExpiration,
+            })
+            .eq("integration_id", params.integrationId);
+
+          if (updateError) {
+            console.error(
+              "Failed to update IntegrationConnection with refreshed GitHub token:",
+              updateError,
+            );
+          } else {
+            console.log("Successfully refreshed and updated GitHub token.");
+          }
+        } catch (refreshErr) {
+          console.error("GitHub token refresh failed:", refreshErr);
+          return {
+            statusCode: 401,
+            body: JSON.stringify({
+              error: "Failed to refresh GitHub token.",
+              authRequired: true,
+            }),
+          };
+        }
+      }
     } else {
       return {
         statusCode: 400,

@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "../../utils/get-supabase-client";
 
 // ============================================================================
 // Types
@@ -29,20 +29,16 @@ function getConfig() {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const redirectUri = process.env.GITHUB_REDIRECT_URI;
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
 
   if (
     !clientId ||
     !clientSecret ||
-    !redirectUri ||
-    !supabaseUrl ||
-    !supabaseKey
+    !redirectUri
   ) {
     throw new Error("Missing required environment variables");
   }
 
-  return { clientId, clientSecret, redirectUri, supabaseUrl, supabaseKey };
+  return { clientId, clientSecret, redirectUri };
 }
 
 // ============================================================================
@@ -98,7 +94,7 @@ async function handleInitiate(
 async function handleCallback(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
-  const { clientId, clientSecret, supabaseUrl, supabaseKey } = getConfig();
+  const { clientId, clientSecret } = getConfig();
 
   const code = event.queryStringParameters?.code;
   const state = event.queryStringParameters?.state;
@@ -177,7 +173,7 @@ async function handleCallback(
 
   const userData = (await userResponse.json()) as GitHubUser;
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = await getSupabase();
   const userId = stateData.userId;
 
   const tokenExpiration = tokenData.expires_in
@@ -185,7 +181,7 @@ async function handleCallback(
     : null;
 
   // Check if a GitHub connection already exists for this user
-  const { data: existing, error: checkError } = await supabase
+  const { data: existing, error: checkError } = await (supabase as any)
     .from("IntegrationConnection")
     .select("integration_id")
     .eq("user_id", userId)
@@ -201,7 +197,7 @@ async function handleCallback(
   if (existing && existing.length > 0) {
     // Update existing row
     const integrationId = existing[0].integration_id;
-    const { error: updateError } = await supabase
+    const { error: updateError } = await (supabase as any)
       .from("IntegrationConnection")
       .update({
         access_token: tokenData.access_token,
@@ -220,7 +216,7 @@ async function handleCallback(
     }
   } else {
     // Insert new row
-    const { error: insertError } = await supabase
+    const { error: insertError } = await (supabase as any)
       .from("IntegrationConnection")
       .insert({
         user_id: userId,
@@ -284,8 +280,7 @@ async function handleStatus(
     };
   }
 
-  const { supabaseUrl, supabaseKey } = getConfig();
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = await getSupabase();
 
   const { data: rows, error } = await supabase
     .from("IntegrationConnection")
@@ -302,7 +297,7 @@ async function handleStatus(
     };
   }
 
-  const token = rows[0];
+  const token = rows[0] as any;
 
   return {
     statusCode: 200,
@@ -330,8 +325,7 @@ async function handleDisconnect(
     };
   }
 
-  const { supabaseUrl, supabaseKey } = getConfig();
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = await getSupabase();
 
   const { error } = await supabase
     .from("IntegrationConnection")
@@ -369,24 +363,24 @@ export async function handler(
     // Route based on path and method
     if (path.endsWith("/callback") && method === "GET") {
       const res = await handleCallback(event);
-      return { ...res, headers: res.headers };
+      return { ...res, headers: res.headers || {} };
     }
 
     if (path.endsWith("/status") && method === "GET") {
       const res = await handleStatus(event);
-      return { ...res, headers: res.headers };
+      return { ...res, headers: res.headers || {} };
     }
 
     if (method === "DELETE") {
       const res = await handleDisconnect(event);
-      return { ...res, headers: res.headers };
+      return { ...res, headers: res.headers || {} };
     }
 
     if (method === "GET") {
       const res = await handleInitiate(event);
       // Initiate uses a 302 redirect, so we must not override the Location header
       // if it exists, but we can add CORS
-      return { ...res, headers: { ...res.headers } };
+      return { ...res, headers: res.headers || {} };
     }
 
     return {
