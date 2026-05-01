@@ -68,6 +68,34 @@ export class WdygdServerStack extends cdk.Stack {
         .unsafeUnwrap(),
     };
 
+    const postConfirmationLambda = new lambdaNode.NodejsFunction(
+      this,
+      "PostConfirmationLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/cognito-post-confirmation-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(30),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          ...supabaseEnv,
+        },
+      },
+    );
+
+    if (!existingUserPoolId) {
+      (userPool as cognito.UserPool).addTrigger(
+        cognito.UserPoolOperation.POST_CONFIRMATION,
+        postConfirmationLambda,
+      );
+    }
+
     const githubOAuthEnv = {
       GITHUB_CLIENT_ID: appSecret
         .secretValueFromJson("GITHUB_CLIENT_ID")
@@ -385,14 +413,6 @@ export class WdygdServerStack extends cdk.Stack {
     const userConfigResource = endpoint.root.addResource("user-config", {
       defaultCorsPreflightOptions: commonCorsOptions,
     });
-    userConfigResource.addMethod(
-      "POST",
-      new apigw.LambdaIntegration(createUserConfigLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
-    );
     userConfigResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(createUserConfigLambda),
