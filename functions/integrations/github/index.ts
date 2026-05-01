@@ -409,12 +409,10 @@ export async function handler(event: any): Promise<any> {
 
     const supabase = await getSupabase();
 
-    // Resolve GitHub token (either direct or via userId lookup)
+    // Resolve GitHub token (via userId lookup)
     let githubToken: string;
 
-    if (params.githubToken) {
-      githubToken = params.githubToken;
-    } else if (params.userId && params.integrationId) {
+    if (params.userId && params.integrationId) {
       const { data: integration, error: integrationError } = await (
         supabase as any
       )
@@ -440,7 +438,7 @@ export async function handler(event: any): Promise<any> {
         statusCode: 400,
         body: JSON.stringify({
           error:
-            "Authentication required: provide either 'githubToken' or ('userId' and 'integrationId')",
+            "Authentication required: provide ('userId' and 'integrationId')",
         }),
       };
     }

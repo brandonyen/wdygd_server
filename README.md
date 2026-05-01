@@ -55,28 +55,6 @@ Retrieves all integration connections for a specific user.
   }
   ```
 
-### **POST `/integration-connection`**
-
-Manually inserts a new integration connection.
-
-- **Body:**
-  ```json
-  {
-    "user_id": "uuid",
-    "provider": "GITHUB" | "SLACK",
-    "access_token": "token",
-    "refresh_token": "token",
-    "token_expiration": "ISO-8601"
-  }
-  ```
-- **Response (201 Created):**
-  ```json
-  {
-    "message": "Integration connection created successfully",
-    "data": [{ ...integration_object... }]
-  }
-  ```
-
 ---
 
 ## 3. OAuth Authentication Flows (GitHub & Slack)
