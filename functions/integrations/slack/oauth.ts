@@ -12,9 +12,7 @@ function getConfig() {
   const stateSecret = process.env.STATE_SECRET;
 
   if (!clientId || !clientSecret || !redirectUri || !stateSecret) {
-    throw new Error(
-      "Missing required environment variables for Slack OAuth",
-    );
+    throw new Error("Missing required environment variables for Slack OAuth");
   }
 
   return { clientId, clientSecret, redirectUri, stateSecret };
@@ -38,7 +36,10 @@ const STATE_EXPIRY_MS = 10 * 60 * 1000; // 10-minute window for OAuth state
 // Helpers
 // ============================================================================
 
-function validateState(state: string, stateSecret: string): {
+function validateState(
+  state: string,
+  stateSecret: string,
+): {
   userId: string;
   finalRedirectUrl?: string;
 } {

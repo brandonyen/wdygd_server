@@ -12,7 +12,7 @@ exports.handler = async (event: APIGatewayProxyEvent) => {
     queryStringParameters,
     body,
   };
-  
+
   return {
     body: JSON.stringify(response, null, 2),
     statusCode: 200,

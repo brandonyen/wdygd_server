@@ -15,7 +15,7 @@ exports.handler = async (event: any) => {
 
   try {
     const supabase = await getSupabase();
-    
+
     // Calculate the time 24 hours ago for the start date
     const endDate = new Date();
     const endDateISO = endDate.toISOString();
@@ -52,14 +52,16 @@ exports.handler = async (event: any) => {
 
     // Process each user
     for (const user of users) {
-      console.log(`Queueing user ${user.email} (ID: ${user.user_id}) for ingestion.`);
+      console.log(
+        `Queueing user ${user.email} (ID: ${user.user_id}) for ingestion.`,
+      );
 
       // Send to SQS
       const messageBody = JSON.stringify({
         userId: user.user_id,
         startDate: startDateISO,
         endDate: endDateISO,
-        timestamp: endDateISO
+        timestamp: endDateISO,
       });
 
       const sendCommand = new SendMessageCommand({
@@ -76,9 +78,14 @@ exports.handler = async (event: any) => {
         .eq("user_id", user.user_id);
 
       if (updateError) {
-        console.error(`Failed to update last_sync for user ${user.email}:`, updateError);
+        console.error(
+          `Failed to update last_sync for user ${user.email}:`,
+          updateError,
+        );
       } else {
-        console.log(`Successfully updated last_sync for user ${user.email} to ${endDateISO}`);
+        console.log(
+          `Successfully updated last_sync for user ${user.email} to ${endDateISO}`,
+        );
       }
     }
 

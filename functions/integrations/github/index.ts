@@ -391,9 +391,7 @@ async function fetchIssues(
 // Main Handler
 // ============================================================================
 
-export async function handler(
-  event: any,
-): Promise<any> {
+export async function handler(event: any): Promise<any> {
   try {
     // Parse request body
     const payload = event.body ? JSON.parse(event.body) : event;
@@ -420,7 +418,9 @@ export async function handler(
     if (params.githubToken) {
       githubToken = params.githubToken;
     } else if (params.userId && params.integrationId) {
-      const { data: integration, error: integrationError } = await (supabase as any)
+      const { data: integration, error: integrationError } = await (
+        supabase as any
+      )
         .from("IntegrationConnection")
         .select("access_token")
         .eq("integration_id", params.integrationId)
@@ -470,13 +470,7 @@ export async function handler(
 
     // Fetch data from GitHub API
     const [commits, pullRequests, reviews, issues] = await Promise.all([
-      fetchCommits(
-        owner,
-        repo,
-        githubToken,
-        params.startDate,
-        params.endDate,
-      ),
+      fetchCommits(owner, repo, githubToken, params.startDate, params.endDate),
       fetchPullRequests(
         owner,
         repo,
@@ -484,13 +478,7 @@ export async function handler(
         params.startDate,
         params.endDate,
       ),
-      fetchReviews(
-        owner,
-        repo,
-        githubToken,
-        params.startDate,
-        params.endDate,
-      ),
+      fetchReviews(owner, repo, githubToken, params.startDate, params.endDate),
       params.includeIssues
         ? fetchIssues(
             owner,
@@ -558,7 +546,10 @@ export async function handler(
         .insert([activityEvent]);
 
       if (insertError) {
-        console.error("Failed to write GitHub activity event to DB:", insertError);
+        console.error(
+          "Failed to write GitHub activity event to DB:",
+          insertError,
+        );
       } else {
         console.log("Wrote GitHub activity event to DB successfully");
       }

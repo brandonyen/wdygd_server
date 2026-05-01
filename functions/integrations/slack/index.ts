@@ -91,7 +91,9 @@ export const handler = async (event: any) => {
   const supabase = await getSupabase();
 
   // Fetch access token from IntegrationConnection table
-  const { data: integrationData, error: integrationError } = await (supabase as any)
+  const { data: integrationData, error: integrationError } = await (
+    supabase as any
+  )
     .from("IntegrationConnection")
     .select("access_token")
     .eq("integration_id", integrationId)

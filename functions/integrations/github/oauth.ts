@@ -30,10 +30,14 @@ function getConfig() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_KEY;
 
-  if (!clientId || !clientSecret || !redirectUri || !supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Missing required environment variables",
-    );
+  if (
+    !clientId ||
+    !clientSecret ||
+    !redirectUri ||
+    !supabaseUrl ||
+    !supabaseKey
+  ) {
+    throw new Error("Missing required environment variables");
   }
 
   return { clientId, clientSecret, redirectUri, supabaseUrl, supabaseKey };
@@ -203,7 +207,9 @@ async function handleCallback(
     if (updateError) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "Failed to update integration connection" }),
+        body: JSON.stringify({
+          error: "Failed to update integration connection",
+        }),
       };
     }
   } else {
@@ -222,7 +228,9 @@ async function handleCallback(
     if (insertError) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: "Failed to insert integration connection" }),
+        body: JSON.stringify({
+          error: "Failed to insert integration connection",
+        }),
       };
     }
   }
