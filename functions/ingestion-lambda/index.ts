@@ -118,8 +118,6 @@ exports.handler = async (event: any) => {
         `Processing integration ${integration.provider} (${integration.integration_id})`,
       );
 
-      let accessToken = integration.access_token;
-
       // Check if expired
       if (
         integration.token_expiration &&
@@ -149,7 +147,6 @@ exports.handler = async (event: any) => {
             continue;
           }
 
-          accessToken = refreshResult.access_token;
           const newExpiration = refreshResult.expires_in
             ? new Date(
                 Date.now() + refreshResult.expires_in * 1000,
@@ -209,6 +206,7 @@ exports.handler = async (event: any) => {
             Payload: JSON.stringify({
               body: JSON.stringify({
                 userId: integration.user_id,
+                integrationId: integration.integration_id,
                 owner: "TODO_OWNER", // Note: Github params require owner and repo
                 repo: "TODO_REPO",
                 startDate: startDateISO,

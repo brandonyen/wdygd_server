@@ -9,6 +9,9 @@ interface GitHubTokenResponse {
   access_token: string;
   token_type: string;
   scope: string;
+  refresh_token?: string;
+  expires_in?: number;
+  refresh_token_expires_in?: number;
   error?: string;
   error_description?: string;
 }
@@ -177,6 +180,10 @@ async function handleCallback(
   const supabase = createClient(supabaseUrl, supabaseKey);
   const userId = stateData.userId;
 
+  const tokenExpiration = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+    : null;
+
   // Check if a GitHub connection already exists for this user
   const { data: existing, error: checkError } = await supabase
     .from("IntegrationConnection")
@@ -198,8 +205,8 @@ async function handleCallback(
       .from("IntegrationConnection")
       .update({
         access_token: tokenData.access_token,
-        refresh_token: null,
-        token_expiration: null,
+        refresh_token: tokenData.refresh_token || null,
+        token_expiration: tokenExpiration,
       })
       .eq("integration_id", integrationId);
 
@@ -219,8 +226,8 @@ async function handleCallback(
         user_id: userId,
         provider: "GITHUB",
         access_token: tokenData.access_token,
-        refresh_token: null,
-        token_expiration: null,
+        refresh_token: tokenData.refresh_token || null,
+        token_expiration: tokenExpiration,
       });
 
     if (insertError) {
