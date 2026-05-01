@@ -8,7 +8,7 @@ const sqsClient = new SQSClient({});
 interface IntegrationConnection {
   integration_id: string;
   user_id: string;
-  provider: "GITHUB" | "SLACK" | "LINEAR";
+  provider: "GITHUB" | "SLACK";
   token_expiration: string | null;
   access_token: string;
   refresh_token: string | null;

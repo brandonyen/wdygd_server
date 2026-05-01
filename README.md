@@ -61,7 +61,7 @@ Retrieves all integration connections for a specific user.
         {
           "integration_id": "uuid",
           "user_id": "uuid",
-          "provider": "GITHUB" | "SLACK" | "LINEAR",
+          "provider": "GITHUB" | "SLACK",
           "access_token": "token",
           "refresh_token": "token",
           "token_expiration": "ISO-8601"
@@ -77,7 +77,7 @@ Manually inserts a new integration connection.
     ```json
     {
       "user_id": "uuid",
-      "provider": "GITHUB" | "SLACK" | "LINEAR",
+      "provider": "GITHUB" | "SLACK",
       "access_token": "token",
       "refresh_token": "token",
       "token_expiration": "ISO-8601"
