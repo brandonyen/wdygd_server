@@ -139,41 +139,15 @@ export class WdygdServerStack extends cdk.Stack {
     const proxyResource = endpoint.root.addResource("{proxy+}");
     proxyResource.addMethod("ANY");
 
-    // --- Slack OAuth: /oauth/slack/initiate ---
-    const slackOAuthInitiateFn = new lambdaNode.NodejsFunction(
+    // --- Slack OAuth ---
+    const slackOAuthFn = new lambdaNode.NodejsFunction(
       this,
-      "SlackOAuthInitiateFn",
+      "SlackOAuthFn",
       {
         entry: path.join(
           __dirname,
           "..",
-          "functions/integrations/slack/oauth/initiate.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_LATEST,
-        environment: {
-          SLACK_CLIENT_ID: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_ID")
-            .unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret
-            .secretValueFromJson("SLACK_REDIRECT_URI")
-            .unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret
-            .secretValueFromJson("STATE_SECRET")
-            .unsafeUnwrap(),
-        },
-      },
-    );
-
-    // --- Slack OAuth: /oauth/slack/callback ---
-    const slackOAuthCallbackFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackOAuthCallbackFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/callback.ts",
+          "functions/integrations/slack/oauth.ts",
         ),
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
@@ -197,41 +171,6 @@ export class WdygdServerStack extends cdk.Stack {
           externalModules: ["@aws-sdk/*"],
         },
       },
-    );
-
-    // --- Slack disconnect ---
-    const slackDisconnectFn = new lambdaNode.NodejsFunction(
-      this,
-      "SlackDisconnectFn",
-      {
-        entry: path.join(
-          __dirname,
-          "..",
-          "functions/integrations/slack/oauth/disconnect.ts",
-        ),
-        handler: "handler",
-        runtime: lambda.Runtime.NODEJS_LATEST,
-        environment: {
-          ...defaultEnvironment,
-        },
-        bundling: {
-          externalModules: ["@aws-sdk/*"],
-        },
-      },
-    );
-
-    // Routes: /oauth/slack/initiate, /oauth/slack/callback, DELETE /oauth/slack
-    const oauthResource = endpoint.root.addResource("oauth");
-    const slackOAuthResource = oauthResource.addResource("slack");
-    slackOAuthResource
-      .addResource("initiate")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthInitiateFn));
-    slackOAuthResource
-      .addResource("callback")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthCallbackFn));
-    slackOAuthResource.addMethod(
-      "DELETE",
-      new apigw.LambdaIntegration(slackDisconnectFn),
     );
 
     // --- Slack data-fetch lambda (invoked internally / on schedule) ---
@@ -259,6 +198,8 @@ export class WdygdServerStack extends cdk.Stack {
     slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
 
     const auth = endpoint.root.addResource("auth");
+    
+    // GitHub Auth routes
     const authGithub = auth.addResource("github");
     authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
     authGithub.addMethod("DELETE", new apigw.LambdaIntegration(githubOAuthFn));
@@ -268,6 +209,18 @@ export class WdygdServerStack extends cdk.Stack {
     authGithub
       .addResource("status")
       .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
+
+    // Slack Auth routes
+    const authSlack = auth.addResource("slack");
+    authSlack.addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack.addMethod("DELETE", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack
+      .addResource("callback")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+    authSlack
+      .addResource("status")
+      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
+
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 1 hour)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
       schedule: events.Schedule.rate(cdk.Duration.hours(1)),
@@ -468,14 +421,8 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
       value: slackFn.functionArn,
     });
-    new cdk.CfnOutput(this, "SlackOAuthInitiateArn", {
-      value: slackOAuthInitiateFn.functionArn,
-    });
-    new cdk.CfnOutput(this, "SlackOAuthCallbackArn", {
-      value: slackOAuthCallbackFn.functionArn,
-    });
-    new cdk.CfnOutput(this, "SlackDisconnectArn", {
-      value: slackDisconnectFn.functionArn,
+    new cdk.CfnOutput(this, "SlackOAuthArn", {
+      value: slackOAuthFn.functionArn,
     });
   }
 }

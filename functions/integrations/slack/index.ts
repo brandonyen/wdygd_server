@@ -2,13 +2,6 @@ import { WebClient } from "@slack/web-api";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
-interface SlackEvent {
-  startDate: string;
-  endDate: string;
-  userId: string;
-  integrationId: string;
-}
-
 interface MessageInfo {
   user: string;
   text: string;
