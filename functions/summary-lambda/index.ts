@@ -111,23 +111,6 @@ class GitHubAggregator implements ProviderAggregator {
   }
 }
 
-// Example of an interfaceable aggregator that is not actually implemented yet
-class GenericProviderAggregator implements ProviderAggregator {
-  private rawEventsCount = 0;
-
-  constructor(private providerName: string) {}
-
-  aggregate(p: any): void {
-    // TODO: implement specific aggregation logic
-    this.rawEventsCount++;
-  }
-
-  getPrompt(): string {
-    if (this.rawEventsCount === 0) return "";
-    return `${this.providerName} Activity: Recorded ${this.rawEventsCount} events.\n\n`;
-  }
-}
-
 // ============================================================================
 // Main Handler
 // ============================================================================
@@ -201,9 +184,6 @@ export const handler = async (event: any) => {
       const aggregators = new Map<string, ProviderAggregator>();
       aggregators.set("SLACK", new SlackAggregator());
       aggregators.set("GITHUB", new GitHubAggregator());
-      // For extensibility: adding placeholders for future providers
-      // aggregators.set("JIRA", new GenericProviderAggregator("Jira"));
-      // aggregators.set("NOTION", new GenericProviderAggregator("Notion"));
 
       // 3. Fetch ActivityEvents using pagination
       let page = 0;
@@ -240,14 +220,6 @@ export const handler = async (event: any) => {
           const aggregator = aggregators.get(provider);
           if (aggregator) {
             aggregator.aggregate(p);
-          } else {
-            // Fallback for unknown provider
-            let generic = aggregators.get(`GENERIC_${provider}`);
-            if (!generic) {
-              generic = new GenericProviderAggregator(provider);
-              aggregators.set(`GENERIC_${provider}`, generic);
-            }
-            generic.aggregate(p);
           }
         }
 
