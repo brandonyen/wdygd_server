@@ -197,16 +197,28 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    const github = endpoint.root.addResource("github");
-    github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
+    const commonCorsOptions: apigw.CorsOptions = {
+      allowOrigins: apigw.Cors.ALL_ORIGINS,
+      allowMethods: apigw.Cors.ALL_METHODS,
+      allowHeaders: ["Content-Type", "Authorization"],
+    };
 
-    const slackResource = endpoint.root.addResource("slack");
+    const githubResource = endpoint.root.addResource("github", {
+      defaultCorsPreflightOptions: commonCorsOptions,
+    });
+    githubResource.addMethod("POST", new apigw.LambdaIntegration(githubFn));
+
+    const slackResource = endpoint.root.addResource("slack", {
+      defaultCorsPreflightOptions: commonCorsOptions,
+    });
     slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
 
     const auth = endpoint.root.addResource("auth");
 
     // GitHub Auth routes
-    const authGithub = auth.addResource("github");
+    const authGithub = auth.addResource("github", {
+      defaultCorsPreflightOptions: commonCorsOptions,
+    });
     authGithub.addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
     authGithub.addMethod("DELETE", new apigw.LambdaIntegration(githubOAuthFn));
     authGithub
@@ -217,7 +229,9 @@ export class WdygdServerStack extends cdk.Stack {
       .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
 
     // Slack Auth routes
-    const authSlack = auth.addResource("slack");
+    const authSlack = auth.addResource("slack", {
+      defaultCorsPreflightOptions: commonCorsOptions,
+    });
     authSlack.addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
     authSlack.addMethod("DELETE", new apigw.LambdaIntegration(slackOAuthFn));
     authSlack
@@ -292,8 +306,10 @@ export class WdygdServerStack extends cdk.Stack {
         },
         environment: {
           ...supabaseEnv,
-          ...githubOAuthEnv,
-          ...slackOAuthEnv,
+          GITHUB_CLIENT_ID: githubOAuthEnv.GITHUB_CLIENT_ID,
+          GITHUB_CLIENT_SECRET: githubOAuthEnv.GITHUB_CLIENT_SECRET,
+          SLACK_CLIENT_ID: slackOAuthEnv.SLACK_CLIENT_ID,
+          SLACK_CLIENT_SECRET: slackOAuthEnv.SLACK_CLIENT_SECRET,
           SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
           GITHUB_LAMBDA_ARN: githubFn.functionArn,
           SLACK_LAMBDA_ARN: slackFn.functionArn,
@@ -359,11 +375,7 @@ export class WdygdServerStack extends cdk.Stack {
 
     // API Gateway integration for CreateUserConfigLambda
     const userConfigResource = endpoint.root.addResource("user-config", {
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
-        allowMethods: apigw.Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"],
-      },
+      defaultCorsPreflightOptions: commonCorsOptions,
     });
     userConfigResource.addMethod(
       "POST",
@@ -399,6 +411,9 @@ export class WdygdServerStack extends cdk.Stack {
     // API Gateway integration for CreateIntegrationConnectionLambda
     const integrationConnectionResource = endpoint.root.addResource(
       "integration-connection",
+      {
+        defaultCorsPreflightOptions: commonCorsOptions,
+      },
     );
     integrationConnectionResource.addMethod(
       "POST",
@@ -435,11 +450,7 @@ export class WdygdServerStack extends cdk.Stack {
     summaryQueue.grantSendMessages(summaryApiLambda);
 
     const summaryResource = endpoint.root.addResource("summary", {
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
-        allowMethods: apigw.Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"],
-      },
+      defaultCorsPreflightOptions: commonCorsOptions,
     });
     summaryResource.addMethod(
       "GET",
@@ -471,11 +482,20 @@ export class WdygdServerStack extends cdk.Stack {
     new cdk.CfnOutput(this, "SummaryLambdaArn", {
       value: summaryLambda.functionArn,
     });
+    new cdk.CfnOutput(this, "SummaryApiLambdaArn", {
+      value: summaryApiLambda.functionArn,
+    });
     new cdk.CfnOutput(this, "SlackIntegrationLambdaArn", {
       value: slackFn.functionArn,
     });
     new cdk.CfnOutput(this, "SlackOAuthArn", {
       value: slackOAuthFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "GitHubIntegrationLambdaArn", {
+      value: githubFn.functionArn,
+    });
+    new cdk.CfnOutput(this, "GitHubOAuthArn", {
+      value: githubOAuthFn.functionArn,
     });
   }
 }
