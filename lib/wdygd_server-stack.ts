@@ -1,8 +1,8 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
-import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaNode from "aws-cdk-lib/aws-lambda-nodejs";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
@@ -52,30 +52,29 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // Fetch Supabase Credentials from Secrets Manager
-    const supabaseSecret = secretsmanager.Secret.fromSecretNameV2(
+    // Fetch Credentials from Secrets Manager
+    const appSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
-      "SupabaseSecret",
+      "AppSecret",
       "prod/wdygd",
     );
 
-    // Environment Variables resolved via CloudFormation dynamic references
-    const defaultEnvironment = {
-      SUPABASE_URL: supabaseSecret
-        .secretValueFromJson("SUPABASE_URL")
-        .unsafeUnwrap(),
-      SUPABASE_KEY: supabaseSecret
-        .secretValueFromJson("SUPABASE_KEY")
-        .unsafeUnwrap(),
-      GITHUB_CLIENT_ID: supabaseSecret
-        .secretValueFromJson("GITHUB_CLIENT_ID")
-        .unsafeUnwrap(),
-      GITHUB_CLIENT_SECRET: supabaseSecret
-        .secretValueFromJson("GITHUB_CLIENT_SECRET")
-        .unsafeUnwrap(),
-      GITHUB_REDIRECT_URI: supabaseSecret
-        .secretValueFromJson("GITHUB_REDIRECT_URI")
-        .unsafeUnwrap(),
+    const supabaseEnv = {
+      SUPABASE_URL: appSecret.secretValueFromJson("SUPABASE_URL").unsafeUnwrap(),
+      SUPABASE_KEY: appSecret.secretValueFromJson("SUPABASE_KEY").unsafeUnwrap(),
+    };
+
+    const githubOAuthEnv = {
+      GITHUB_CLIENT_ID: appSecret.secretValueFromJson("GITHUB_CLIENT_ID").unsafeUnwrap(),
+      GITHUB_CLIENT_SECRET: appSecret.secretValueFromJson("GITHUB_CLIENT_SECRET").unsafeUnwrap(),
+      GITHUB_REDIRECT_URI: appSecret.secretValueFromJson("GITHUB_REDIRECT_URI").unsafeUnwrap(),
+    };
+
+    const slackOAuthEnv = {
+      SLACK_CLIENT_ID: appSecret.secretValueFromJson("SLACK_CLIENT_ID").unsafeUnwrap(),
+      SLACK_CLIENT_SECRET: appSecret.secretValueFromJson("SLACK_CLIENT_SECRET").unsafeUnwrap(),
+      SLACK_REDIRECT_URI: appSecret.secretValueFromJson("SLACK_REDIRECT_URI").unsafeUnwrap(),
+      STATE_SECRET: appSecret.secretValueFromJson("STATE_SECRET").unsafeUnwrap(),
     };
 
     const fn = new lambdaNode.NodejsFunction(this, "BackendApiFn", {
@@ -90,7 +89,6 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
         USER_POOL_ID: userPool.userPoolId,
       },
     });
@@ -108,7 +106,7 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
       },
     });
 
@@ -125,7 +123,8 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
+        ...githubOAuthEnv,
       },
     });
 
@@ -153,19 +152,8 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(30),
         environment: {
-          SLACK_CLIENT_ID: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_ID")
-            .unsafeUnwrap(),
-          SLACK_CLIENT_SECRET: supabaseSecret
-            .secretValueFromJson("SLACK_CLIENT_SECRET")
-            .unsafeUnwrap(),
-          SLACK_REDIRECT_URI: supabaseSecret
-            .secretValueFromJson("SLACK_REDIRECT_URI")
-            .unsafeUnwrap(),
-          STATE_SECRET: supabaseSecret
-            .secretValueFromJson("STATE_SECRET")
-            .unsafeUnwrap(),
-          ...defaultEnvironment,
+          ...supabaseEnv,
+          ...slackOAuthEnv,
         },
         bundling: {
           externalModules: ["@aws-sdk/*"],
@@ -187,7 +175,7 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
       },
     });
 
@@ -251,7 +239,7 @@ export class WdygdServerStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
         INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
       },
       bundling: {
@@ -278,7 +266,9 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
+        ...githubOAuthEnv,
+        ...slackOAuthEnv,
         SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
         GITHUB_LAMBDA_ARN: githubFn.functionArn,
         SLACK_LAMBDA_ARN: slackFn.functionArn,
@@ -308,7 +298,7 @@ export class WdygdServerStack extends cdk.Stack {
         externalModules: ["@aws-sdk/*"],
       },
       environment: {
-        ...defaultEnvironment,
+        ...supabaseEnv,
       },
     });
 
@@ -340,7 +330,7 @@ export class WdygdServerStack extends cdk.Stack {
           externalModules: ["@aws-sdk/*"],
         },
         environment: {
-          ...defaultEnvironment,
+          ...supabaseEnv,
         },
       },
     );
@@ -376,7 +366,7 @@ export class WdygdServerStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_LATEST,
         timeout: cdk.Duration.seconds(300),
         environment: {
-          ...defaultEnvironment,
+          ...supabaseEnv,
         },
         bundling: {
           externalModules: ["@aws-sdk/*"],
