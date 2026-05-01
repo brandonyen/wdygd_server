@@ -387,15 +387,15 @@ export class WdygdServerStack extends cdk.Stack {
       }),
     );
 
-    // Create User Config Lambda
-    const createUserConfigLambda = new lambdaNode.NodejsFunction(
+    // Get User Config Lambda
+    const getUserConfigLambda = new lambdaNode.NodejsFunction(
       this,
-      "CreateUserConfigLambda",
+      "GetUserConfigLambda",
       {
         entry: path.join(
           __dirname,
           "..",
-          "functions/create-user-config-lambda/index.ts",
+          "functions/get-user-config-lambda/index.ts",
         ),
         handler: "handler",
         runtime: lambda.Runtime.NODEJS_LATEST,
@@ -409,13 +409,13 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
-    // API Gateway integration for CreateUserConfigLambda
+    // API Gateway integration for GetUserConfigLambda
     const userConfigResource = endpoint.root.addResource("user-config", {
       defaultCorsPreflightOptions: commonCorsOptions,
     });
     userConfigResource.addMethod(
       "GET",
-      new apigw.LambdaIntegration(createUserConfigLambda),
+      new apigw.LambdaIntegration(getUserConfigLambda),
       {
         authorizer,
         authorizationType: apigw.AuthorizationType.COGNITO,
