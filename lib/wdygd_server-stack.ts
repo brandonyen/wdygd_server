@@ -247,11 +247,11 @@ export class WdygdServerStack extends cdk.Stack {
     authGithub
       .addResource("status")
       .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
-    // EventBridge (Daily Scheduler) - triggers periodic checks (every 30 min)
+    // EventBridge (Daily Scheduler) - triggers periodic checks (every 1 hour)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
-      schedule: events.Schedule.rate(cdk.Duration.minutes(30)),
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
       description:
-        "Triggers periodic checks every 30 min to determine which users need summaries generated.",
+        "Triggers periodic checks every 1 hour to determine which users need summaries generated.",
     });
 
     // SQS Queue (Ingestion) - buffers ingestion jobs
@@ -267,15 +267,21 @@ export class WdygdServerStack extends cdk.Stack {
     });
 
     // Target lambda for the scheduler
-    const schedulerLambda = new lambda.Function(this, "SchedulerLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/scheduler-lambda"),
+    const schedulerLambda = new lambdaNode.NodejsFunction(this, "SchedulerLambda", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/scheduler-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(300),
       environment: {
         ...defaultEnvironment,
         INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
+      },
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
       },
     });
 
