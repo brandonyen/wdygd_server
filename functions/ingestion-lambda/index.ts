@@ -86,6 +86,8 @@ exports.handler = async (event: any) => {
   for (const record of event.Records) {
     const payload = JSON.parse(record.body);
     const userId = payload.userId;
+    const startDateISO = payload.startDate;
+    const endDate = payload.endDate;
     console.log("Processing ingestion for user:", userId);
 
     // 1. Fetch IntegrationConnections
@@ -156,12 +158,6 @@ exports.handler = async (event: any) => {
           continue; // Skip this integration if we can't refresh
         }
       }
-
-      // Calculate time bounds for data fetching
-      const endDate = new Date().toISOString();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 1);
-      const startDateISO = startDate.toISOString();
 
       // Call the respective Lambda function
       try {
