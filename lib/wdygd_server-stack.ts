@@ -90,22 +90,35 @@ export class WdygdServerStack extends cdk.Stack {
       },
     });
 
-    const githubFn = new lambda.Function(this, "GitHubIntegrationFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/integrations/github"),
+    const githubFn = new lambdaNode.NodejsFunction(this, "GitHubIntegrationFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/github/index.ts",
       ),
-      timeout: cdk.Duration.seconds(30),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
+      environment: {
+        ...defaultEnvironment,
+      },
     });
 
-    const githubOAuthFn = new lambda.Function(this, "GitHubOAuthFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "oauth.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/integrations/github"),
+    const githubOAuthFn = new lambdaNode.NodejsFunction(this, "GitHubOAuthFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/integrations/github/oauth.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(30),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
       },
@@ -236,6 +249,9 @@ export class WdygdServerStack extends cdk.Stack {
 
     const github = endpoint.root.addResource("github");
     github.addMethod("POST", new apigw.LambdaIntegration(githubFn));
+
+    const slackResource = endpoint.root.addResource("slack");
+    slackResource.addMethod("POST", new apigw.LambdaIntegration(slackFn));
 
     const auth = endpoint.root.addResource("auth");
     const authGithub = auth.addResource("github");
