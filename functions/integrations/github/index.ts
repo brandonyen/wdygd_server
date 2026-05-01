@@ -7,9 +7,6 @@ import { getSupabase } from "../../utils/get-supabase-client";
 interface GitHubRequestParams {
   userId: string;
   integrationId: string;
-  // Repository info
-  owner?: string;
-  repo?: string;
   startDate: string; // ISO 8601 format (e.g., "2024-01-01T00:00:00Z")
   endDate: string; // ISO 8601 format
   includeIssues?: boolean;
@@ -18,51 +15,38 @@ interface GitHubRequestParams {
 interface GitHubCommit {
   sha: string;
   message: string;
-  author: string;
-  date: string;
+  repo: string;
   url: string;
 }
 
 interface GitHubPullRequest {
   number: number;
   title: string;
-  state: "open" | "closed" | "merged";
-  author: string;
-  createdAt: string;
-  mergedAt: string | null;
-  closedAt: string | null;
+  repo: string;
+  state: string;
   url: string;
-  additions: number;
-  deletions: number;
-  changedFiles: number;
-  reviewCount: number;
+  action: string;
 }
 
 interface GitHubReview {
   prNumber: number;
   prTitle: string;
-  reviewer: string;
+  repo: string;
   state: string;
-  submittedAt: string;
   url: string;
 }
 
 interface GitHubIssue {
   number: number;
   title: string;
-  state: "open" | "closed";
-  author: string;
-  createdAt: string;
-  closedAt: string | null;
+  repo: string;
+  state: string;
   url: string;
-  labels: string[];
+  action: string;
 }
 
 interface GitHubSummaryData {
-  repository: {
-    owner: string;
-    repo: string;
-  };
+  user: string;
   dateRange: {
     startDate: string;
     endDate: string;
@@ -79,7 +63,7 @@ interface GitHubSummaryData {
     totalReviews: number;
     totalIssuesOpened?: number;
     totalIssuesClosed?: number;
-    uniqueContributors: string[];
+    reposTouched: string[];
   };
 }
 
@@ -157,271 +141,6 @@ async function githubFetch<T>(
   return response.json() as Promise<T>;
 }
 
-async function fetchAllPages<T>(
-  endpoint: string,
-  token: string,
-  params?: Record<string, string>,
-): Promise<T[]> {
-  const allItems: T[] = [];
-  let page = 1;
-  const perPage = 100;
-
-  while (true) {
-    const pageParams = {
-      ...params,
-      page: String(page),
-      per_page: String(perPage),
-    };
-    const items = await githubFetch<T[]>(endpoint, token, pageParams);
-
-    if (items.length === 0) break;
-
-    allItems.push(...items);
-
-    if (items.length < perPage) break;
-    page++;
-  }
-
-  return allItems;
-}
-
-// ============================================================================
-// Data Fetching Functions
-// ============================================================================
-
-async function fetchCommits(
-  owner: string,
-  repo: string,
-  token: string,
-  startDate: string,
-  endDate: string,
-): Promise<GitHubCommit[]> {
-  interface GitHubCommitResponse {
-    sha: string;
-    commit: {
-      message: string;
-      author: {
-        name: string;
-        date: string;
-      };
-    };
-    html_url: string;
-  }
-
-  const commits = await fetchAllPages<GitHubCommitResponse>(
-    `/repos/${owner}/${repo}/commits`,
-    token,
-    { since: startDate, until: endDate },
-  );
-
-  return commits.map((commit) => ({
-    sha: commit.sha.substring(0, 7),
-    message: commit.commit.message.split("\n")[0], // First line only
-    author: commit.commit.author.name,
-    date: commit.commit.author.date,
-    url: commit.html_url,
-  }));
-}
-
-async function fetchPullRequests(
-  owner: string,
-  repo: string,
-  token: string,
-  startDate: string,
-  endDate: string,
-): Promise<GitHubPullRequest[]> {
-  interface GitHubPRResponse {
-    number: number;
-    title: string;
-    state: string;
-    user: { login: string };
-    created_at: string;
-    merged_at: string | null;
-    closed_at: string | null;
-    html_url: string;
-    additions: number;
-    deletions: number;
-    changed_files: number;
-  }
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Fetch all PRs (both open and closed) to filter by date range
-  const [openPRs, closedPRs] = await Promise.all([
-    fetchAllPages<GitHubPRResponse>(`/repos/${owner}/${repo}/pulls`, token, {
-      state: "open",
-      sort: "updated",
-      direction: "desc",
-    }),
-    fetchAllPages<GitHubPRResponse>(`/repos/${owner}/${repo}/pulls`, token, {
-      state: "closed",
-      sort: "updated",
-      direction: "desc",
-    }),
-  ]);
-
-  const allPRs = [...openPRs, ...closedPRs];
-
-  // Filter PRs that were created, merged, or closed within the date range
-  const relevantPRs = allPRs.filter((pr) => {
-    const created = new Date(pr.created_at);
-    const merged = pr.merged_at ? new Date(pr.merged_at) : null;
-    const closed = pr.closed_at ? new Date(pr.closed_at) : null;
-
-    return (
-      (created >= start && created <= end) ||
-      (merged && merged >= start && merged <= end) ||
-      (closed && closed >= start && closed <= end)
-    );
-  });
-
-  // Fetch review counts for each PR
-  const prsWithReviews = await Promise.all(
-    relevantPRs.map(async (pr) => {
-      interface ReviewResponse {
-        id: number;
-      }
-      const reviews = await githubFetch<ReviewResponse[]>(
-        `/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        token,
-      );
-      return { ...pr, reviewCount: reviews.length };
-    }),
-  );
-
-  return prsWithReviews.map((pr) => ({
-    number: pr.number,
-    title: pr.title,
-    state: pr.merged_at ? "merged" : (pr.state as "open" | "closed"),
-    author: pr.user.login,
-    createdAt: pr.created_at,
-    mergedAt: pr.merged_at,
-    closedAt: pr.closed_at,
-    url: pr.html_url,
-    additions: pr.additions,
-    deletions: pr.deletions,
-    changedFiles: pr.changed_files,
-    reviewCount: pr.reviewCount,
-  }));
-}
-
-async function fetchReviews(
-  owner: string,
-  repo: string,
-  token: string,
-  startDate: string,
-  endDate: string,
-): Promise<GitHubReview[]> {
-  interface GitHubReviewResponse {
-    user: { login: string };
-    state: string;
-    submitted_at: string;
-    html_url: string;
-  }
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Fetch recently updated PRs to get their reviews
-  const recentPRs = await fetchAllPages<{
-    number: number;
-    title: string;
-    updated_at: string;
-  }>(`/repos/${owner}/${repo}/pulls`, token, {
-    state: "all",
-    sort: "updated",
-    direction: "desc",
-  });
-
-  // Filter to PRs updated within or after start date
-  const relevantPRs = recentPRs.filter(
-    (pr) => new Date(pr.updated_at) >= start,
-  );
-
-  const allReviews: GitHubReview[] = [];
-
-  for (const pr of relevantPRs) {
-    const reviews = await githubFetch<GitHubReviewResponse[]>(
-      `/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-      token,
-    );
-
-    const filteredReviews = reviews
-      .filter((review) => {
-        if (!review.submitted_at) return false;
-        const submittedAt = new Date(review.submitted_at);
-        return submittedAt >= start && submittedAt <= end;
-      })
-      .map((review) => ({
-        prNumber: pr.number,
-        prTitle: pr.title,
-        reviewer: review.user.login,
-        state: review.state,
-        submittedAt: review.submitted_at,
-        url: review.html_url,
-      }));
-
-    allReviews.push(...filteredReviews);
-  }
-
-  return allReviews;
-}
-
-async function fetchIssues(
-  owner: string,
-  repo: string,
-  token: string,
-  startDate: string,
-  endDate: string,
-): Promise<GitHubIssue[]> {
-  interface GitHubIssueResponse {
-    number: number;
-    title: string;
-    state: string;
-    user: { login: string };
-    created_at: string;
-    closed_at: string | null;
-    html_url: string;
-    labels: Array<{ name: string }>;
-    pull_request?: unknown;
-  }
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  const issues = await fetchAllPages<GitHubIssueResponse>(
-    `/repos/${owner}/${repo}/issues`,
-    token,
-    { state: "all", since: startDate, sort: "updated", direction: "desc" },
-  );
-
-  // Filter out PRs (GitHub API includes PRs in issues endpoint)
-  const actualIssues = issues.filter((issue) => !issue.pull_request);
-
-  // Filter issues by date range
-  const relevantIssues = actualIssues.filter((issue) => {
-    const created = new Date(issue.created_at);
-    const closed = issue.closed_at ? new Date(issue.closed_at) : null;
-
-    return (
-      (created >= start && created <= end) ||
-      (closed && closed >= start && closed <= end)
-    );
-  });
-
-  return relevantIssues.map((issue) => ({
-    number: issue.number,
-    title: issue.title,
-    state: issue.state as "open" | "closed",
-    author: issue.user.login,
-    createdAt: issue.created_at,
-    closedAt: issue.closed_at,
-    url: issue.html_url,
-    labels: issue.labels.map((l) => l.name),
-  }));
-}
-
 // ============================================================================
 // Main Handler
 // ============================================================================
@@ -434,9 +153,6 @@ export async function handler(event: any): Promise<any> {
     if (!params.startDate || !params.endDate) {
       throw new Error("Missing required fields: startDate, endDate");
     }
-
-    const owner = params.owner || "TODO_OWNER";
-    const repo = params.repo || "TODO_REPO";
 
     const supabase = await getSupabase();
 
@@ -522,67 +238,141 @@ export async function handler(event: any): Promise<any> {
       throw new Error("startDate must be before endDate");
     }
 
-    // Fetch data from GitHub API
-    const [commits, pullRequests, reviews, issues] = await Promise.all([
-      fetchCommits(owner, repo, githubToken, params.startDate, params.endDate),
-      fetchPullRequests(
-        owner,
-        repo,
-        githubToken,
-        params.startDate,
-        params.endDate,
-      ),
-      fetchReviews(owner, repo, githubToken, params.startDate, params.endDate),
-      params.includeIssues
-        ? fetchIssues(
-            owner,
-            repo,
-            githubToken,
-            params.startDate,
-            params.endDate,
-          )
-        : Promise.resolve(undefined),
-    ]);
+    // 1. Get authenticated user's username
+    const userRes = await githubFetch<{ login: string }>("/user", githubToken);
+    const username = userRes.login;
 
-    // Calculate statistics
-    const uniqueContributors = new Set<string>();
-    commits.forEach((c) => uniqueContributors.add(c.author));
-    pullRequests.forEach((pr) => uniqueContributors.add(pr.author));
-    reviews.forEach((r) => uniqueContributors.add(r.reviewer));
+    // 2. Fetch events paginated until we hit the start date or run out of pages
+    const events: any[] = [];
+    let page = 1;
+    
+    console.log(`Fetching events for user ${username} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    
+    while (true) {
+      const pageEvents = await githubFetch<any[]>(`/users/${username}/events`, githubToken, {
+        page: String(page),
+        per_page: "100",
+      });
+
+      if (!pageEvents || pageEvents.length === 0) break;
+
+      let reachedOlderEvents = false;
+
+      for (const ev of pageEvents) {
+        const evDate = new Date(ev.created_at);
+
+        if (evDate > endDate) continue; // Skip events newer than end date
+        if (evDate < startDate) {
+          reachedOlderEvents = true; // Stop processing further once we pass the start date
+          break;
+        }
+
+        events.push(ev);
+      }
+
+      // GitHub limits events API to 300 events or 90 days, so we break if we reach older events or run out of results
+      if (reachedOlderEvents || pageEvents.length < 100) break;
+      
+      page++;
+    }
+
+    console.log(`Found ${events.length} events in the specified date range.`);
+
+    // 3. Parse the events into our SummaryData
+    const commits: GitHubCommit[] = [];
+    const prs = new Map<number, GitHubPullRequest>();
+    const reviews: GitHubReview[] = [];
+    const issues = new Map<number, GitHubIssue>();
+    const reposTouched = new Set<string>();
+
+    let totalPRsOpened = 0;
+    let totalPRsMerged = 0;
+    let totalPRsClosed = 0;
+    let totalIssuesOpened = 0;
+    let totalIssuesClosed = 0;
+
+    for (const ev of events) {
+      const repoName = ev.repo.name;
+      reposTouched.add(repoName);
+
+      if (ev.type === "PushEvent" && ev.payload.commits) {
+        for (const commit of ev.payload.commits) {
+          // GitHub's PushEvent only contains commits pushed by this user.
+          commits.push({
+            sha: commit.sha.substring(0, 7),
+            message: commit.message.split("\n")[0],
+            repo: repoName,
+            url: `https://github.com/${repoName}/commit/${commit.sha}`,
+          });
+        }
+      } else if (ev.type === "PullRequestEvent") {
+        const pr = ev.payload.pull_request;
+        const action = ev.payload.action;
+
+        if (action === "opened") totalPRsOpened++;
+        if (action === "closed") {
+          if (pr.merged) totalPRsMerged++;
+          else totalPRsClosed++;
+        }
+
+        prs.set(pr.id, {
+          number: pr.number,
+          title: pr.title,
+          repo: repoName,
+          state: pr.state,
+          url: pr.html_url,
+          action: action,
+        });
+      } else if (ev.type === "PullRequestReviewEvent") {
+        const action = ev.payload.action;
+        if (action === "created" || action === "submitted") {
+          reviews.push({
+            prNumber: ev.payload.pull_request.number,
+            prTitle: ev.payload.pull_request.title,
+            repo: repoName,
+            state: ev.payload.review.state,
+            url: ev.payload.review.html_url,
+          });
+        }
+      } else if (ev.type === "IssuesEvent" && params.includeIssues) {
+        const issue = ev.payload.issue;
+        const action = ev.payload.action;
+
+        if (action === "opened") totalIssuesOpened++;
+        if (action === "closed") totalIssuesClosed++;
+
+        issues.set(issue.id, {
+          number: issue.number,
+          title: issue.title,
+          repo: repoName,
+          state: issue.state,
+          url: issue.html_url,
+          action: action,
+        });
+      }
+    }
 
     const summaryData: GitHubSummaryData = {
-      repository: {
-        owner: owner,
-        repo: repo,
-      },
+      user: username,
       dateRange: {
         startDate: params.startDate,
         endDate: params.endDate,
       },
       commits,
-      pullRequests,
+      pullRequests: Array.from(prs.values()),
       reviews,
-      ...(issues && { issues }),
+      ...(params.includeIssues && { issues: Array.from(issues.values()) }),
       stats: {
         totalCommits: commits.length,
-        totalPRsOpened: pullRequests.filter((pr) => {
-          const created = new Date(pr.createdAt);
-          return created >= startDate && created <= endDate;
-        }).length,
-        totalPRsMerged: pullRequests.filter((pr) => pr.state === "merged")
-          .length,
-        totalPRsClosed: pullRequests.filter(
-          (pr) => pr.state === "closed" && pr.closedAt,
-        ).length,
+        totalPRsOpened,
+        totalPRsMerged,
+        totalPRsClosed,
         totalReviews: reviews.length,
-        ...(issues && {
-          totalIssuesOpened: issues.filter((i) => {
-            const created = new Date(i.createdAt);
-            return created >= startDate && created <= endDate;
-          }).length,
-          totalIssuesClosed: issues.filter((i) => i.closedAt !== null).length,
+        ...(params.includeIssues && {
+          totalIssuesOpened,
+          totalIssuesClosed,
         }),
-        uniqueContributors: Array.from(uniqueContributors),
+        reposTouched: Array.from(reposTouched),
       },
     };
 

@@ -77,8 +77,6 @@ exports.handler = async (event: any) => {
             Payload: JSON.stringify({
               userId: integration.user_id,
               integrationId: integration.integration_id,
-              owner: "TODO_OWNER", // Note: Github params require owner and repo
-              repo: "TODO_REPO",
               startDate: startDateISO,
               endDate,
             }),
