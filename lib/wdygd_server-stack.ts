@@ -78,12 +78,17 @@ export class WdygdServerStack extends cdk.Stack {
         .unsafeUnwrap(),
     };
 
-    const fn = new lambda.Function(this, "BackendApiFn", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/backend-entry-lambda"),
+    const fn = new lambdaNode.NodejsFunction(this, "BackendApiFn", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/backend-entry-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
         USER_POOL_ID: userPool.userPoolId,
@@ -337,13 +342,18 @@ export class WdygdServerStack extends cdk.Stack {
     // Grant Ingestion Lambda permission to send messages to Summary Queue
     summaryQueue.grantSendMessages(ingestionLambda);
     // Summary Lambda
-    const summaryLambda = new lambda.Function(this, "SummaryLambda", {
-      runtime: lambda.Runtime.NODEJS_LATEST,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "..", "functions/summary-lambda"),
+    const summaryLambda = new lambdaNode.NodejsFunction(this, "SummaryLambda", {
+      entry: path.join(
+        __dirname,
+        "..",
+        "functions/summary-lambda/index.ts",
       ),
+      handler: "handler",
+      runtime: lambda.Runtime.NODEJS_LATEST,
       timeout: cdk.Duration.seconds(300),
+      bundling: {
+        externalModules: ["@aws-sdk/*"],
+      },
       environment: {
         ...defaultEnvironment,
       },
