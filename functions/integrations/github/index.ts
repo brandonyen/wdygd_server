@@ -1,4 +1,5 @@
-import { getTokenStore } from "./token-store.js";
+import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 // ============================================================================
 // Types
@@ -411,33 +412,47 @@ export async function handler(
     const owner = params.owner || "TODO_OWNER";
     const repo = params.repo || "TODO_REPO";
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error(
+        "Missing SUPABASE_URL or SUPABASE_KEY environment variables",
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     // Resolve GitHub token (either direct or via userId lookup)
     let githubToken: string;
 
     if (params.githubToken) {
       githubToken = params.githubToken;
-    } else if (params.userId) {
-      const tokenStore = getTokenStore();
-      const storedToken = await tokenStore.getToken(params.userId);
+    } else if (params.userId && params.integrationId) {
+      const { data: integration, error: integrationError } = await supabase
+        .from("IntegrationConnection")
+        .select("access_token")
+        .eq("integration_id", params.integrationId)
+        .eq("user_id", params.userId)
+        .single();
 
-      if (!storedToken) {
+      if (integrationError || !integration?.access_token) {
         return {
           statusCode: 401,
           body: JSON.stringify({
-            error:
-              "GitHub account not connected. Please authenticate via OAuth first.",
+            error: `GitHub account not connected. Failed to fetch integration credentials: ${integrationError?.message}`,
             authRequired: true,
           }),
         };
       }
 
-      githubToken = storedToken.accessToken;
+      githubToken = integration.access_token;
     } else {
       return {
         statusCode: 400,
         body: JSON.stringify({
           error:
-            "Authentication required: provide either 'githubToken' or 'userId'",
+            "Authentication required: provide either 'githubToken' or ('userId' and 'integrationId')",
         }),
       };
     }
@@ -537,6 +552,35 @@ export async function handler(
         uniqueContributors: Array.from(uniqueContributors),
       },
     };
+
+    if (params.userId && params.integrationId) {
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        const activityEvent = {
+          event_id: randomUUID(),
+          user_id: params.userId,
+          integration_id: params.integrationId,
+          timestamp: new Date().toISOString(),
+          payload: summaryData,
+        };
+
+        const { error: insertError } = await supabase
+          .from("ActivityEvent")
+          .insert([activityEvent]);
+
+        if (insertError) {
+          console.error("Failed to write GitHub activity event to DB:", insertError);
+        } else {
+          console.log("Wrote GitHub activity event to DB successfully");
+        }
+      } else {
+        console.warn("Missing Supabase credentials, skipping ActivityEvent write");
+      }
+    }
 
     return {
       statusCode: 200,
