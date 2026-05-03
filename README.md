@@ -47,6 +47,7 @@ Retrieves all integration connections for a specific user.
         "integration_id": "uuid",
         "user_id": "uuid",
         "provider": "GITHUB" | "SLACK",
+        "provider_workspace_id": "string", // Slack workspace ID
         "access_token": "token",
         "refresh_token": "token",
         "token_expiration": "ISO-8601"
@@ -68,6 +69,7 @@ Starts the OAuth flow. The frontend should redirect the user to this URL.
 - **Query Parameters:**
   - `userId` (string, required): The internal user ID.
   - `redirectUrl` (string, optional): The frontend URL to redirect back to upon completion.
+  - `teamId` (string, optional, Slack only): The Slack team/workspace ID to pre-select.
 - **Action:** Returns a `302 Redirect` to the provider's authorization page.
 
 ### **GET `/auth/<provider>/callback`**
@@ -89,7 +91,14 @@ Checks if the user has successfully connected the specific integration.
   {
     "connected": true,
     "connectedAt": "ISO-8601",
-    "tokenExpiration": "ISO-8601"
+    "tokenExpiration": "ISO-8601",
+    "workspaces": [ // Slack only
+      {
+        "connectedAt": "ISO-8601",
+        "tokenExpiration": "ISO-8601",
+        "workspaceId": "string"
+      }
+    ]
   }
 
   // If not connected:
@@ -104,6 +113,7 @@ Disconnects the integration by deleting the tokens from the database.
 
 - **Query Parameters:**
   - `userId` (string, required): The user's ID.
+  - `workspaceId` (string, optional, Slack only): The specific workspace to disconnect.
 - **Response (200 OK):**
   ```json
   {

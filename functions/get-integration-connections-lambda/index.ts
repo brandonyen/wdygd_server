@@ -37,7 +37,7 @@ export const handler = async (event: any) => {
       const { data, error } = await supabase
         .from("IntegrationConnection")
         .select(
-          "integration_id, user_id, provider, token_expiration, created_at",
+          "integration_id, user_id, provider, provider_workspace_id, token_expiration, created_at",
         )
         .eq("user_id", user_id);
 

@@ -95,6 +95,7 @@ async function handleInitiate(event: any): Promise<any> {
   const { clientId, redirectUri, stateSecret } = getConfig();
   const userId = event.queryStringParameters?.userId;
   const finalRedirectUrl = event.queryStringParameters?.redirectUrl;
+  const teamId = event.queryStringParameters?.teamId;
 
   if (!userId) {
     return {
@@ -122,6 +123,10 @@ async function handleInitiate(event: any): Promise<any> {
     redirect_uri: redirectUri,
     state,
   });
+
+  if (teamId) {
+    params.set("team", teamId);
+  }
 
   return {
     statusCode: 302,
@@ -179,6 +184,10 @@ async function handleCallback(event: any): Promise<any> {
       refresh_token?: string;
       expires_in?: number;
     };
+    team?: {
+      id: string;
+      name: string;
+    };
   };
 
   if (!tokenData.ok) {
@@ -194,16 +203,22 @@ async function handleCallback(event: any): Promise<any> {
   const tokenExpiration: string | null = authedUser.expires_in
     ? new Date(Date.now() + authedUser.expires_in * 1000).toISOString()
     : null;
+  const teamId = tokenData.team?.id;
 
   // Upsert into Supabase IntegrationConnection
   const supabase = await getSupabase();
 
-  const { data: existing, error: fetchError } = await (supabase as any)
+  let query = (supabase as any)
     .from("IntegrationConnection")
     .select("integration_id")
     .eq("user_id", userId)
-    .eq("provider", "SLACK")
-    .maybeSingle();
+    .eq("provider", "SLACK");
+
+  if (teamId) {
+    query = query.eq("provider_workspace_id", teamId);
+  }
+
+  const { data: existing, error: fetchError } = await query.maybeSingle();
 
   if (fetchError) {
     console.error("Supabase fetch error:", fetchError);
@@ -230,6 +245,7 @@ async function handleCallback(event: any): Promise<any> {
       .insert({
         user_id: userId,
         provider: "SLACK",
+        provider_workspace_id: teamId,
         access_token: accessToken,
         refresh_token: refreshToken,
         token_expiration: tokenExpiration,
@@ -274,7 +290,7 @@ async function handleStatus(event: any): Promise<any> {
   const supabase = await getSupabase();
   const { data, error } = await supabase
     .from("IntegrationConnection")
-    .select("created_at, token_expiration")
+    .select("created_at, token_expiration, provider_workspace_id")
     .eq("user_id", userId)
     .eq("provider", "SLACK");
 
@@ -285,24 +301,31 @@ async function handleStatus(event: any): Promise<any> {
       statusCode: 200,
       body: JSON.stringify({
         connected: false,
+        workspaces: [],
       }),
     };
   }
 
-  const token = rows[0];
+  const workspaces = rows.map((row) => ({
+    connectedAt: row.created_at,
+    tokenExpiration: row.token_expiration,
+    workspaceId: row.provider_workspace_id,
+  }));
 
   return {
     statusCode: 200,
     body: JSON.stringify({
       connected: true,
-      connectedAt: token.created_at,
-      tokenExpiration: token.token_expiration,
+      workspaces,
+      connectedAt: rows[0].created_at,
+      tokenExpiration: rows[0].token_expiration,
     }),
   };
 }
 
 async function handleDisconnect(event: any): Promise<any> {
   const userId = event.queryStringParameters?.userId;
+  const workspaceId = event.queryStringParameters?.workspaceId;
 
   if (!userId) {
     return {
@@ -313,11 +336,17 @@ async function handleDisconnect(event: any): Promise<any> {
 
   const supabase = await getSupabase();
 
-  const { error } = await supabase
+  let query = supabase
     .from("IntegrationConnection")
     .delete()
     .eq("user_id", userId)
     .eq("provider", "SLACK");
+
+  if (workspaceId) {
+    query = query.eq("provider_workspace_id", workspaceId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     console.error("Supabase delete error:", error);
