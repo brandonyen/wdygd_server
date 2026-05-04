@@ -48,9 +48,8 @@ Retrieves all integration connections for a specific user.
         "user_id": "uuid",
         "provider": "GITHUB" | "SLACK",
         "provider_workspace_id": "string", // Slack workspace ID
-        "access_token": "token",
-        "refresh_token": "token",
-        "token_expiration": "ISO-8601"
+        "token_expiration": "ISO-8601",
+        "created_at": "ISO-8601"
       }
     ]
   }
