@@ -351,6 +351,12 @@ async function handleDisconnect(
 // Main Handler
 // ============================================================================
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "OPTIONS,GET,DELETE",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
+
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
@@ -358,31 +364,40 @@ export async function handler(
     const path = event.path ?? "";
     const method = event.httpMethod ?? "";
 
+    if (method === "OPTIONS") {
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: "",
+      };
+    }
+
     // Route based on path and method
     if (path.endsWith("/callback") && method === "GET") {
       const res = await handleCallback(event);
-      return { ...res, headers: res.headers || {} };
+      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 
     if (path.endsWith("/status") && method === "GET") {
       const res = await handleStatus(event);
-      return { ...res, headers: res.headers || {} };
+      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 
     if (method === "DELETE") {
       const res = await handleDisconnect(event);
-      return { ...res, headers: res.headers || {} };
+      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 
     if (method === "GET") {
       const res = await handleInitiate(event);
       // Initiate uses a 302 redirect, so we must not override the Location header
       // if it exists, but we can add CORS
-      return { ...res, headers: res.headers || {} };
+      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 
     return {
       statusCode: 405,
+      headers: corsHeaders,
       body: JSON.stringify({ error: "Method not allowed" }),
     };
   } catch (error) {
@@ -393,6 +408,7 @@ export async function handler(
 
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ error: errorMessage }),
     };
   }
