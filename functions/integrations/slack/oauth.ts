@@ -190,6 +190,8 @@ async function handleCallback(event: any): Promise<any> {
     };
   };
 
+  console.log("Slack Token Exchange Response:", JSON.stringify(tokenData, null, 2));
+
   if (!tokenData.ok) {
     console.error("Slack token exchange failed:", tokenData.error);
     return buildRedirect(finalRedirectUrl, {

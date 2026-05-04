@@ -142,6 +142,8 @@ async function handleCallback(
 
   const tokenData = (await tokenResponse.json()) as GitHubTokenResponse;
 
+  console.log("GitHub Token Exchange Response:", JSON.stringify(tokenData, null, 2));
+
   if (tokenData.error) {
     return {
       statusCode: 400,
