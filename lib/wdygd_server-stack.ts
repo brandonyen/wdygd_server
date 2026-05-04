@@ -450,6 +450,30 @@ export class WdygdServerStack extends cdk.Stack {
       },
     );
 
+    // Ingestion API Lambda
+    const ingestionApiLambda = new lambdaNode.NodejsFunction(
+      this,
+      "IngestionApiLambda",
+      {
+        entry: path.join(
+          __dirname,
+          "..",
+          "functions/ingestion-api-lambda/index.ts",
+        ),
+        handler: "handler",
+        runtime: lambda.Runtime.NODEJS_LATEST,
+        timeout: cdk.Duration.seconds(30),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+        environment: {
+          INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
+        },
+      },
+    );
+
+    ingestionQueue.grantSendMessages(ingestionApiLambda);
+
     // Summary API Lambda
     const summaryApiLambda = new lambdaNode.NodejsFunction(
       this,
@@ -468,12 +492,16 @@ export class WdygdServerStack extends cdk.Stack {
         },
         environment: {
           ...supabaseEnv,
-          SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
         },
       },
     );
 
-    summaryQueue.grantSendMessages(summaryApiLambda);
+    summaryApiLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
 
     const summaryResource = endpoint.root.addResource("summary", {
       defaultCorsPreflightOptions: commonCorsOptions,
@@ -489,6 +517,19 @@ export class WdygdServerStack extends cdk.Stack {
     summaryResource.addMethod(
       "POST",
       new apigw.LambdaIntegration(summaryApiLambda),
+      {
+        authorizer,
+        authorizationType: apigw.AuthorizationType.COGNITO,
+      },
+    );
+
+    // Sync API Integration
+    const syncResource = endpoint.root.addResource("sync", {
+      defaultCorsPreflightOptions: commonCorsOptions,
+    });
+    syncResource.addMethod(
+      "POST",
+      new apigw.LambdaIntegration(ingestionApiLambda),
       {
         authorizer,
         authorizationType: apigw.AuthorizationType.COGNITO,

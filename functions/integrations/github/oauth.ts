@@ -142,7 +142,10 @@ async function handleCallback(
 
   const tokenData = (await tokenResponse.json()) as GitHubTokenResponse;
 
-  console.log("GitHub Token Exchange Response:", JSON.stringify(tokenData, null, 2));
+  console.log(
+    "GitHub Token Exchange Response:",
+    JSON.stringify(tokenData, null, 2),
+  );
 
   if (tokenData.error) {
     return {
@@ -360,6 +363,9 @@ const corsHeaders = {
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
+  console.log(
+    `GitHub OAuth lambda triggered: ${event.httpMethod} ${event.path}`,
+  );
   try {
     const path = event.path ?? "";
     const method = event.httpMethod ?? "";

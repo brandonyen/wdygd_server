@@ -1,7 +1,5 @@
 import { getSupabase } from "../utils/get-supabase-client";
-import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
-
-const sqsClient = new SQSClient({});
+import { generateSummary } from "../utils/generate-summary";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +9,7 @@ const corsHeaders = {
 
 export const handler = async (event: any) => {
   const httpMethod = event.httpMethod;
+  console.log(`Summary API triggered with method: ${httpMethod}`);
 
   if (httpMethod === "OPTIONS") {
     return {
@@ -75,27 +74,20 @@ export const handler = async (event: any) => {
         };
       }
 
-      const queueUrl = process.env.SUMMARY_QUEUE_URL;
-      if (!queueUrl) {
-        throw new Error("SUMMARY_QUEUE_URL not set");
-      }
-
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: queueUrl,
-          MessageBody: JSON.stringify({
-            user_id,
-            start_date,
-            end_date,
-            summary_type,
-          }),
-        }),
+      const { summary } = await generateSummary(
+        user_id,
+        start_date,
+        end_date,
+        summary_type,
       );
 
       return {
-        statusCode: 202,
+        statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ message: "Summary job queued successfully" }),
+        body: JSON.stringify({
+          data: summary,
+          message: "Summary generated successfully",
+        }),
       };
     }
 

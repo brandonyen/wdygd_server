@@ -127,6 +127,23 @@ Disconnects the integration by deleting the tokens from the database.
 
 These endpoints allow the frontend to fetch generated summaries or manually request the generation of a new summary.
 
+### **POST `/sync`**
+
+Starts the data collection and summary generation process for a specific user for the past 24 hours. The generated summary will have a `summary_type` of `"DAILY"`.
+
+- **Body:**
+  ```json
+  {
+    "user_id": "uuid"
+  }
+  ```
+- **Response (202 Accepted):**
+  ```json
+  {
+    "message": "Data collection and summary generation started for the past day."
+  }
+  ```
+
 ### **GET `/summary`**
 
 Retrieves generated summaries for a user, optionally filtered by date range and type.
@@ -155,7 +172,7 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
 
 ### **POST `/summary`**
 
-Requests the generation of a new summary. This puts a job onto an SQS queue which will asynchronously collect data from integrations and trigger the AI model.
+Requests the generation of a new summary from previously collected data. The generation is done synchronously and the resulting summary is immediately returned in the response as well as saved to the database.
 
 - **Body:**
   ```json
@@ -166,9 +183,18 @@ Requests the generation of a new summary. This puts a job onto an SQS queue whic
     "summary_type": "USER_GENERATED" // Defaults to USER_GENERATED
   }
   ```
-- **Response (202 Accepted):**
+- **Response (200 OK):**
   ```json
   {
-    "message": "Summary job queued successfully"
+    "message": "Summary generated successfully",
+    "data": {
+      "summary_id": "uuid",
+      "user_id": "uuid",
+      "summary_type": "USER_GENERATED",
+      "created_at": "ISO-8601",
+      "start_date": "ISO-8601",
+      "end_date": "ISO-8601",
+      "content": "..."
+    }
   }
   ```
