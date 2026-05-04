@@ -78,13 +78,16 @@ export const handler = async (event: any) => {
         user_id,
         start_date,
         end_date,
-        summary_type
+        summary_type,
       );
 
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ data: summary, message: "Summary generated successfully" }),
+        body: JSON.stringify({
+          data: summary,
+          message: "Summary generated successfully",
+        }),
       };
     }
 

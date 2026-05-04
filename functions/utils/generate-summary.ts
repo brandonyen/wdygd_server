@@ -100,7 +100,7 @@ export async function generateSummary(
   user_id: string,
   start_date: string,
   end_date: string,
-  summary_type: string
+  summary_type: string,
 ): Promise<{ summary: any; skipped: boolean }> {
   const supabase = await getSupabase();
 
@@ -115,12 +115,14 @@ export async function generateSummary(
     .eq("summary_type", summary_type);
 
   if (checkError) {
-    throw new Error(`Failed to check existing summaries: ${checkError.message}`);
+    throw new Error(
+      `Failed to check existing summaries: ${checkError.message}`,
+    );
   }
 
   if (existingSummaries && existingSummaries.length > 0) {
     console.log(
-      `Summary already exists for user ${user_id} (${start_date} to ${end_date}) type ${summary_type}. Skipping.`
+      `Summary already exists for user ${user_id} (${start_date} to ${end_date}) type ${summary_type}. Skipping.`,
     );
     return { summary: existingSummaries[0], skipped: true };
   }
@@ -218,7 +220,7 @@ export async function generateSummary(
   };
 
   const bedrockResponse = await bedrockClient.send(
-    new InvokeModelCommand(bedrockReq)
+    new InvokeModelCommand(bedrockReq),
   );
   const result = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
   const summaryText = result.content[0].text;
@@ -245,6 +247,6 @@ export async function generateSummary(
   }
 
   console.log(`Successfully generated and saved summary for user ${user_id}`);
-  
+
   return { summary: insertedData, skipped: false };
 }

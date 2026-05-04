@@ -32,7 +32,7 @@ export const handler = async (event: any) => {
     if (!queueUrl) {
       throw new Error("INGESTION_QUEUE_URL not set");
     }
-    
+
     await sqsClient.send(
       new SendMessageCommand({
         QueueUrl: queueUrl,
@@ -40,22 +40,25 @@ export const handler = async (event: any) => {
           userId: user_id,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          summaryType: "DAILY"
+          summaryType: "DAILY",
         }),
-      })
+      }),
     );
 
     return {
       statusCode: 202,
       headers: corsHeaders,
-      body: JSON.stringify({ message: "Data collection and summary generation started for the past day." }),
+      body: JSON.stringify({
+        message:
+          "Data collection and summary generation started for the past day.",
+      }),
     };
   } catch (err: any) {
     console.error("Ingestion API Error:", err);
-    return { 
-      statusCode: 500, 
-      headers: corsHeaders, 
-      body: JSON.stringify({ message: err.message || "Internal server error" }) 
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ message: err.message || "Internal server error" }),
     };
   }
 };

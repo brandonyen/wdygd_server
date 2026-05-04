@@ -190,7 +190,10 @@ async function handleCallback(event: any): Promise<any> {
     };
   };
 
-  console.log("Slack Token Exchange Response:", JSON.stringify(tokenData, null, 2));
+  console.log(
+    "Slack Token Exchange Response:",
+    JSON.stringify(tokenData, null, 2),
+  );
 
   if (!tokenData.ok) {
     console.error("Slack token exchange failed:", tokenData.error);
@@ -374,7 +377,9 @@ const corsHeaders = {
 };
 
 export async function handler(event: any): Promise<any> {
-  console.log(`Slack OAuth lambda triggered: ${event.httpMethod} ${event.path}`);
+  console.log(
+    `Slack OAuth lambda triggered: ${event.httpMethod} ${event.path}`,
+  );
   try {
     const path = event.path ?? "";
     const method = event.httpMethod ?? "";
