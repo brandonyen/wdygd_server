@@ -492,12 +492,16 @@ export class WdygdServerStack extends cdk.Stack {
         },
         environment: {
           ...supabaseEnv,
-          SUMMARY_QUEUE_URL: summaryQueue.queueUrl,
         },
       },
     );
 
-    summaryQueue.grantSendMessages(summaryApiLambda);
+    summaryApiLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      }),
+    );
 
     const summaryResource = endpoint.root.addResource("summary", {
       defaultCorsPreflightOptions: commonCorsOptions,

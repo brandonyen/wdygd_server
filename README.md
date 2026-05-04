@@ -172,7 +172,7 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
 
 ### **POST `/summary`**
 
-Requests the generation of a new summary. This puts a job onto an SQS queue which will asynchronously collect data from integrations and trigger the AI model.
+Requests the generation of a new summary from previously collected data. The generation is done synchronously and the resulting summary is immediately returned in the response as well as saved to the database.
 
 - **Body:**
   ```json
@@ -183,9 +183,18 @@ Requests the generation of a new summary. This puts a job onto an SQS queue whic
     "summary_type": "USER_GENERATED" // Defaults to USER_GENERATED
   }
   ```
-- **Response (202 Accepted):**
+- **Response (200 OK):**
   ```json
   {
-    "message": "Summary job queued successfully"
+    "message": "Summary generated successfully",
+    "data": {
+      "summary_id": "uuid",
+      "user_id": "uuid",
+      "summary_type": "USER_GENERATED",
+      "created_at": "ISO-8601",
+      "start_date": "ISO-8601",
+      "end_date": "ISO-8601",
+      "content": "..."
+    }
   }
   ```
