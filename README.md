@@ -127,6 +127,23 @@ Disconnects the integration by deleting the tokens from the database.
 
 These endpoints allow the frontend to fetch generated summaries or manually request the generation of a new summary.
 
+### **POST `/sync`**
+
+Starts the data collection and summary generation process for a specific user for the past 24 hours. The generated summary will have a `summary_type` of `"DAILY"`.
+
+- **Body:**
+  ```json
+  {
+    "user_id": "uuid"
+  }
+  ```
+- **Response (202 Accepted):**
+  ```json
+  {
+    "message": "Data collection and summary generation started for the past day."
+  }
+  ```
+
 ### **GET `/summary`**
 
 Retrieves generated summaries for a user, optionally filtered by date range and type.
