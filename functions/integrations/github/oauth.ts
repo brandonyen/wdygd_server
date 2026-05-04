@@ -360,6 +360,7 @@ const corsHeaders = {
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
+  console.log(`GitHub OAuth lambda triggered: ${event.httpMethod} ${event.path}`);
   try {
     const path = event.path ?? "";
     const method = event.httpMethod ?? "";

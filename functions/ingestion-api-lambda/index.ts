@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 export const handler = async (event: any) => {
+  console.log(`Ingestion API triggered with method: ${event.httpMethod}`);
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: corsHeaders, body: "" };
   }

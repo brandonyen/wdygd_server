@@ -374,6 +374,7 @@ const corsHeaders = {
 };
 
 export async function handler(event: any): Promise<any> {
+  console.log(`Slack OAuth lambda triggered: ${event.httpMethod} ${event.path}`);
   try {
     const path = event.path ?? "";
     const method = event.httpMethod ?? "";

@@ -9,6 +9,7 @@ const corsHeaders = {
 
 export const handler = async (event: any) => {
   const httpMethod = event.httpMethod;
+  console.log(`Summary API triggered with method: ${httpMethod}`);
 
   if (httpMethod === "OPTIONS") {
     return {
