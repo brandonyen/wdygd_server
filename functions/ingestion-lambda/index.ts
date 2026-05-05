@@ -58,7 +58,7 @@ exports.handler = async (event: any) => {
 
           const invokeCmd = new InvokeCommand({
             FunctionName: lambdaArn,
-            InvocationType: "Event",
+            InvocationType: "RequestResponse",
             Payload: JSON.stringify({
               startDate: startDateISO,
               endDate,
@@ -68,14 +68,14 @@ exports.handler = async (event: any) => {
           });
 
           await lambdaClient.send(invokeCmd);
-          console.log("Successfully invoked Slack lambda asynchronously");
+          console.log("Successfully invoked Slack lambda synchronously");
         } else if (integration.provider === "GITHUB") {
           const lambdaArn = process.env.GITHUB_LAMBDA_ARN;
           if (!lambdaArn) throw new Error("GITHUB_LAMBDA_ARN is not defined");
 
           const invokeCmd = new InvokeCommand({
             FunctionName: lambdaArn,
-            InvocationType: "Event",
+            InvocationType: "RequestResponse",
             Payload: JSON.stringify({
               userId: integration.user_id,
               integrationId: integration.integration_id,
@@ -85,7 +85,7 @@ exports.handler = async (event: any) => {
           });
 
           await lambdaClient.send(invokeCmd);
-          console.log("Successfully invoked GitHub lambda asynchronously");
+          console.log("Successfully invoked GitHub lambda synchronously");
         }
       } catch (invokeErr) {
         console.error(
@@ -110,12 +110,9 @@ exports.handler = async (event: any) => {
           new SendMessageCommand({
             QueueUrl: summaryQueueUrl,
             MessageBody: JSON.stringify(summaryMsg),
-            DelaySeconds: 300, // Wait 5 minutes to allow async integration lambdas to finish
           }),
         );
-        console.log(
-          `Sent summary job for user ${userId} to SummaryQueue with 300s delay`,
-        );
+        console.log(`Sent summary job for user ${userId} to SummaryQueue`);
       } catch (sqsErr) {
         console.error(
           `Failed to send summary job to SQS for user ${userId}:`,
