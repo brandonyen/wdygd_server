@@ -1,7 +1,9 @@
 import type { APIGatewayProxyEvent } from "aws-lambda";
 
 export const handler = async (event: APIGatewayProxyEvent) => {
-  console.log("Backend entry lambda triggered");
+  console.log(
+    `Backend entry lambda triggered with method: ${event.httpMethod}, path: ${event.path}`,
+  );
   return {
     statusCode: 200,
     headers: {

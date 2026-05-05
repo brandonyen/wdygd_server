@@ -97,6 +97,10 @@ async function handleInitiate(event: any): Promise<any> {
   const finalRedirectUrl = event.queryStringParameters?.redirectUrl;
   const teamId = event.queryStringParameters?.teamId;
 
+  console.log(
+    `Initiating Slack OAuth flow for user_id: ${userId}, teamId: ${teamId}, finalRedirectUrl: ${finalRedirectUrl}`,
+  );
+
   if (!userId) {
     return {
       statusCode: 400,
@@ -138,6 +142,10 @@ async function handleInitiate(event: any): Promise<any> {
 async function handleCallback(event: any): Promise<any> {
   const { clientId, clientSecret, redirectUri, stateSecret } = getConfig();
   const { code, state, error } = event.queryStringParameters ?? {};
+
+  console.log(
+    `Processing Slack OAuth callback, hasCode: ${!!code}, hasState: ${!!state}, hasError: ${!!error}`,
+  );
 
   if (error) {
     console.error("Slack OAuth error:", error);
@@ -285,6 +293,8 @@ async function handleCallback(event: any): Promise<any> {
 async function handleStatus(event: any): Promise<any> {
   const userId = event.queryStringParameters?.userId;
 
+  console.log(`Checking Slack connection status for user_id: ${userId}`);
+
   if (!userId) {
     return {
       statusCode: 400,
@@ -331,6 +341,10 @@ async function handleStatus(event: any): Promise<any> {
 async function handleDisconnect(event: any): Promise<any> {
   const userId = event.queryStringParameters?.userId;
   const workspaceId = event.queryStringParameters?.workspaceId;
+
+  console.log(
+    `Disconnecting Slack account for user_id: ${userId}, workspaceId: ${workspaceId}`,
+  );
 
   if (!userId) {
     return {

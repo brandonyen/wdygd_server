@@ -11,7 +11,10 @@ interface UserConfig {
 }
 
 exports.handler = async (event: any) => {
-  console.log("Scheduler triggered to check for users needing summaries.");
+  console.log(
+    "Scheduler triggered to check for users needing summaries. Event:",
+    JSON.stringify(event),
+  );
 
   try {
     const supabase = await getSupabase();

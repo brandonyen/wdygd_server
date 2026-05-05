@@ -102,6 +102,9 @@ export async function generateSummary(
   end_date: string,
   summary_type: string,
 ): Promise<{ summary: any; skipped: boolean }> {
+  console.log(
+    `generateSummary called for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}`,
+  );
   const supabase = await getSupabase();
 
   // 0. Check if summary already exists

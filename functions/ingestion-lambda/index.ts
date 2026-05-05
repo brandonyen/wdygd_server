@@ -12,7 +12,9 @@ interface IntegrationConnection {
 }
 
 exports.handler = async (event: any) => {
-  console.log("Ingestion triggered with records:", event.Records.length);
+  console.log(
+    `Ingestion lambda triggered with ${event.Records?.length || 0} records.`,
+  );
   const supabase = await getSupabase();
 
   for (const record of event.Records) {

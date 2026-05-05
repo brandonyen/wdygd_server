@@ -15,6 +15,7 @@ export const handler = async (event: any) => {
 
     if (httpMethod === "GET") {
       const email = event.queryStringParameters?.email;
+      console.log(`Fetching user config for email: ${email}`);
 
       if (!email) {
         return {

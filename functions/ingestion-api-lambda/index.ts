@@ -16,6 +16,7 @@ export const handler = async (event: any) => {
   try {
     const body = JSON.parse(event.body || "{}");
     const { user_id } = body;
+    console.log(`Ingestion requested for user_id: ${user_id}`);
 
     if (!user_id) {
       return {
@@ -33,6 +34,9 @@ export const handler = async (event: any) => {
       throw new Error("INGESTION_QUEUE_URL not set");
     }
 
+    console.log(
+      `Sending message to IngestionQueue for user_id: ${user_id} with date range ${startDate.toISOString()} to ${endDate.toISOString()}`,
+    );
     await sqsClient.send(
       new SendMessageCommand({
         QueueUrl: queueUrl,

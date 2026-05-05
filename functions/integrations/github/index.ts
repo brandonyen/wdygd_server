@@ -146,6 +146,10 @@ async function githubFetch<T>(
 // ============================================================================
 
 export async function handler(event: any): Promise<any> {
+  console.log(
+    `GitHub integration lambda triggered with event:`,
+    JSON.stringify(event),
+  );
   try {
     const params: GitHubRequestParams = event;
 

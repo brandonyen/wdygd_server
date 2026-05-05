@@ -117,6 +117,10 @@ async function fetchChannelMessages(
 }
 
 export const handler = async (event: any) => {
+  console.log(
+    `Slack integration lambda triggered with event:`,
+    JSON.stringify(event),
+  );
   const { startDate, endDate, userId, integrationId } = event;
 
   const supabase = await getSupabase();

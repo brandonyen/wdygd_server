@@ -53,6 +53,10 @@ async function handleInitiate(
   const userId = event.queryStringParameters?.userId;
   const finalRedirectUrl = event.queryStringParameters?.redirectUrl;
 
+  console.log(
+    `Initiating GitHub OAuth flow for user_id: ${userId}, finalRedirectUrl: ${finalRedirectUrl}`,
+  );
+
   if (!userId) {
     return {
       statusCode: 400,
@@ -95,6 +99,10 @@ async function handleCallback(
   const code = event.queryStringParameters?.code;
   const state = event.queryStringParameters?.state;
   const error = event.queryStringParameters?.error;
+
+  console.log(
+    `Processing GitHub OAuth callback, hasCode: ${!!code}, hasState: ${!!state}, hasError: ${!!error}`,
+  );
 
   if (error) {
     const errorDescription =
@@ -274,6 +282,8 @@ async function handleStatus(
 ): Promise<APIGatewayProxyResult> {
   const userId = event.queryStringParameters?.userId;
 
+  console.log(`Checking GitHub connection status for user_id: ${userId}`);
+
   if (!userId) {
     return {
       statusCode: 400,
@@ -318,6 +328,8 @@ async function handleDisconnect(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   const userId = event.queryStringParameters?.userId;
+
+  console.log(`Disconnecting GitHub account for user_id: ${userId}`);
 
   if (!userId) {
     return {

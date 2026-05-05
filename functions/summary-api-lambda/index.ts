@@ -28,6 +28,10 @@ export const handler = async (event: any) => {
       const end_date = event.queryStringParameters?.end_date;
       const summary_type = event.queryStringParameters?.summary_type;
 
+      console.log(
+        `Fetching summaries for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}`,
+      );
+
       if (!user_id) {
         return {
           statusCode: 400,
@@ -63,6 +67,10 @@ export const handler = async (event: any) => {
       const body = JSON.parse(event.body || "{}");
       const { user_id, start_date, end_date } = body;
       const summary_type = body.summary_type || "USER_GENERATED";
+
+      console.log(
+        `Requesting summary generation for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}`,
+      );
 
       if (!user_id || !start_date || !end_date) {
         return {

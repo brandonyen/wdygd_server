@@ -23,6 +23,7 @@ export const handler = async (event: any) => {
 
     if (httpMethod === "GET") {
       const user_id = event.queryStringParameters?.user_id;
+      console.log(`Fetching integration connections for user_id: ${user_id}`);
 
       if (!user_id) {
         return {
