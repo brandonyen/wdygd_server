@@ -265,8 +265,18 @@ export async function handler(event: any): Promise<any> {
       if (repoName) reposSet.add(repoName);
 
       if (ev.type === "PushEvent" && ev.payload?.commits) {
-        stats.commits += ev.payload.commits.length;
-        for (const commit of ev.payload.commits) {
+        // Only count commits authored by the user who owns the token
+        // to avoid logging massive numbers of third-party commits pushed in a merge.
+        const userCommits = ev.payload.commits.filter(
+          (c: any) =>
+            c.author?.name === username ||
+            c.author?.name === ev.actor?.display_login ||
+            c.author?.name === ev.actor?.login,
+        );
+
+        stats.commits += userCommits.length;
+
+        for (const commit of userCommits) {
           if (commit.message && commitMessages.length < 50) {
             commitMessages.push(commit.message.split("\n")[0]);
           }
