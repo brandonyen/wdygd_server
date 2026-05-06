@@ -257,7 +257,13 @@ export async function generateSummary(
     prompt += aggregator.getPrompt();
   }
 
-  prompt += `\nPlease provide a concise, natural-language summary (1-2 paragraphs) detailing what was accomplished, reviewed, or discussed today. Do not hallucinate information not present in the data.`;
+  prompt += `\nPlease provide a concise summary detailing what was accomplished, reviewed, or discussed today. Do not hallucinate information not present in the data.
+
+You must return your response as a valid JSON object with exactly two keys:
+1. "content": A natural-language summary (1-2 paragraphs) detailing the activities. You may use first-person pronouns here if desired.
+2. "content_array": An array of strings representing the same activities, but broken down into bullet points. Do NOT use first-person pronouns like "I" or "me" in this array. Start each point with an action verb in the past tense (e.g., "Focused on improving...", "Reviewed pull requests...").
+
+Return ONLY valid JSON without any markdown formatting, backticks, or extra text.`;
 
   // 5. Call Bedrock with Converse API
   const bedrockCommand = new ConverseCommand({
@@ -280,7 +286,22 @@ export async function generateSummary(
     throw new Error("Invalid response from Bedrock Converse API");
   }
 
-  const summaryText = bedrockResponse.output.message.content[0].text;
+  const responseText = bedrockResponse.output.message.content[0].text;
+  let parsedResponse;
+  try {
+    // Strip markdown code blocks if the model included them despite instructions
+    const cleanJson = responseText
+      .replace(/^```json\n/, "")
+      .replace(/\n```$/, "")
+      .trim();
+    parsedResponse = JSON.parse(cleanJson);
+  } catch (e) {
+    console.error("Failed to parse LLM response as JSON:", responseText);
+    throw new Error("LLM did not return a valid JSON object.");
+  }
+
+  const summaryText = parsedResponse.content || "";
+  const summaryArray = parsedResponse.content_array || [];
 
   // 6. Write to Summary table
   const summaryData = {
@@ -290,6 +311,7 @@ export async function generateSummary(
     start_date: start_date,
     end_date: end_date,
     content: summaryText,
+    content_array: summaryArray,
   };
 
   const { data: insertedData, error: insertError } = await (

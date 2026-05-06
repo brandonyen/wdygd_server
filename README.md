@@ -164,7 +164,8 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
         "created_at": "ISO-8601",
         "start_date": "ISO-8601",
         "end_date": "ISO-8601",
-        "content": "Today I reviewed 3 PRs..."
+        "content": "Today I reviewed 3 PRs...",
+        "content_array": ["Reviewed 3 PRs...", "Merged feature branch..."]
       }
     ]
   }
@@ -194,7 +195,8 @@ Requests the generation of a new summary from previously collected data. The gen
       "created_at": "ISO-8601",
       "start_date": "ISO-8601",
       "end_date": "ISO-8601",
-      "content": "..."
+      "content": "...",
+      "content_array": ["...", "..."]
     }
   }
   ```
