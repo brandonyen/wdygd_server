@@ -73,6 +73,9 @@ class GitHubAggregator implements ProviderAggregator {
     repos: new Set<string>(),
   };
 
+  private commitMessages: string[] = [];
+  private prDetails: { title: string; body: string; action: string }[] = [];
+
   aggregate(p: any): void {
     const events = p.events || [];
     for (const ev of events) {
@@ -81,13 +84,37 @@ class GitHubAggregator implements ProviderAggregator {
 
       if (ev.type === "PushEvent" && ev.payload?.commits) {
         this.stats.commits += ev.payload.commits.length;
+        for (const commit of ev.payload.commits) {
+          if (commit.message && this.commitMessages.length < 20) {
+            this.commitMessages.push(commit.message.split("\n")[0]);
+          }
+        }
       } else if (ev.type === "PullRequestEvent") {
         const action = ev.payload?.action;
         const pr = ev.payload?.pull_request;
-        if (action === "opened") this.stats.prsOpened++;
-        if (action === "closed") {
-          if (pr?.merged) this.stats.prsMerged++;
-          else this.stats.prsClosed++;
+
+        if (action === "opened") {
+          this.stats.prsOpened++;
+          if (pr && this.prDetails.length < 10) {
+            this.prDetails.push({
+              title: pr.title || "",
+              body: pr.body || "",
+              action: "opened",
+            });
+          }
+        } else if (action === "closed") {
+          if (pr?.merged) {
+            this.stats.prsMerged++;
+            if (pr && this.prDetails.length < 10) {
+              this.prDetails.push({
+                title: pr.title || "",
+                body: pr.body || "",
+                action: "merged",
+              });
+            }
+          } else {
+            this.stats.prsClosed++;
+          }
         }
       } else if (ev.type === "PullRequestReviewEvent") {
         const action = ev.payload?.action;
@@ -105,7 +132,7 @@ class GitHubAggregator implements ProviderAggregator {
   getPrompt(): string {
     if (this.stats.repos.size === 0) return "";
 
-    return `GitHub Activity:
+    let prompt = `GitHub Activity:
 - Repositories touched: ${Array.from(this.stats.repos).join(", ")}
 - Commits made: ${this.stats.commits}
 - Pull Requests Opened: ${this.stats.prsOpened}
@@ -116,6 +143,27 @@ class GitHubAggregator implements ProviderAggregator {
 - Issues Closed: ${this.stats.totalIssuesClosed}
 
 `;
+
+    if (this.prDetails.length > 0) {
+      prompt += `Key Pull Requests:\n`;
+      for (const pr of this.prDetails) {
+        prompt += `- [${pr.action.toUpperCase()}] ${pr.title}\n`;
+        if (pr.body) {
+          prompt += `  Description: ${pr.body.substring(0, 200).replace(/\n/g, " ")}...\n`;
+        }
+      }
+      prompt += `\n`;
+    }
+
+    if (this.commitMessages.length > 0) {
+      prompt += `Sample Commits:\n`;
+      for (const msg of this.commitMessages.slice(0, 10)) {
+        prompt += `- ${msg}\n`;
+      }
+      prompt += `\n`;
+    }
+
+    return prompt;
   }
 }
 
