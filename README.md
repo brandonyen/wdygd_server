@@ -143,7 +143,6 @@ Starts the data collection and summary generation process for a specific user fo
     "message": "Data collection and summary generation started for the past day."
   }
   ```
-
 ### **GET `/summary`**
 
 Retrieves generated summaries for a user, optionally filtered by date range and type.
@@ -153,6 +152,7 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
   - `start_date` (string, optional): ISO-8601 start boundary.
   - `end_date` (string, optional): ISO-8601 end boundary.
   - `summary_type` (string, optional): Enum: `"DAILY"` or `"USER_GENERATED"`.
+  - `latest` (boolean, optional): If set to `true`, only the most recent summary matching the filters will be returned (as a single object instead of an array).
 - **Response (200 OK):**
   ```json
   {
@@ -160,6 +160,7 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
       {
         "summary_id": "uuid",
         "user_id": "uuid",
+...
         "summary_type": "DAILY",
         "created_at": "ISO-8601",
         "start_date": "ISO-8601",

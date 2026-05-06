@@ -27,9 +27,10 @@ export const handler = async (event: any) => {
       const start_date = event.queryStringParameters?.start_date;
       const end_date = event.queryStringParameters?.end_date;
       const summary_type = event.queryStringParameters?.summary_type;
+      const latest = event.queryStringParameters?.latest === "true";
 
       console.log(
-        `Fetching summaries for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}`,
+        `Fetching summaries for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}, latest: ${latest}`,
       );
 
       if (!user_id) {
@@ -50,6 +51,10 @@ export const handler = async (event: any) => {
 
       query = query.order("created_at", { ascending: false });
 
+      if (latest) {
+        query = query.limit(1);
+      }
+
       const { data, error } = await query;
 
       if (error) {
@@ -59,7 +64,7 @@ export const handler = async (event: any) => {
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ data: latest ? (data?.[0] || null) : data }),
       };
     }
 
