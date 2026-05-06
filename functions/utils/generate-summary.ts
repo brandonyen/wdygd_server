@@ -64,21 +64,39 @@ class GitHubAggregator implements ProviderAggregator {
     commits: 0,
     prsOpened: 0,
     prsMerged: 0,
-    issuesClosed: 0,
+    prsClosed: 0,
+    totalReviews: 0,
+    totalIssuesOpened: 0,
+    totalIssuesClosed: 0,
     repos: new Set<string>(),
   };
 
   aggregate(p: any): void {
-    if (p.stats && p.stats.reposTouched) {
-      for (const repo of p.stats.reposTouched) {
-        this.stats.repos.add(repo);
+    const events = p.events || [];
+    for (const ev of events) {
+      const repoName = ev.repo?.name;
+      if (repoName) this.stats.repos.add(repoName);
+
+      if (ev.type === "PushEvent" && ev.payload?.commits) {
+        this.stats.commits += ev.payload.commits.length;
+      } else if (ev.type === "PullRequestEvent") {
+        const action = ev.payload?.action;
+        const pr = ev.payload?.pull_request;
+        if (action === "opened") this.stats.prsOpened++;
+        if (action === "closed") {
+          if (pr?.merged) this.stats.prsMerged++;
+          else this.stats.prsClosed++;
+        }
+      } else if (ev.type === "PullRequestReviewEvent") {
+        const action = ev.payload?.action;
+        if (action === "created" || action === "submitted") {
+          this.stats.totalReviews++;
+        }
+      } else if (ev.type === "IssuesEvent") {
+        const action = ev.payload?.action;
+        if (action === "opened") this.stats.totalIssuesOpened++;
+        if (action === "closed") this.stats.totalIssuesClosed++;
       }
-    }
-    if (p.stats) {
-      this.stats.commits += p.stats.totalCommits || 0;
-      this.stats.prsOpened += p.stats.totalPRsOpened || 0;
-      this.stats.prsMerged += p.stats.totalPRsMerged || 0;
-      this.stats.issuesClosed += p.stats.totalIssuesClosed || 0;
     }
   }
 
@@ -90,7 +108,10 @@ class GitHubAggregator implements ProviderAggregator {
 - Commits made: ${this.stats.commits}
 - Pull Requests Opened: ${this.stats.prsOpened}
 - Pull Requests Merged: ${this.stats.prsMerged}
-- Issues Closed: ${this.stats.issuesClosed}
+- Pull Requests Closed (unmerged): ${this.stats.prsClosed}
+- PR Reviews Submitted: ${this.stats.totalReviews}
+- Issues Opened: ${this.stats.totalIssuesOpened}
+- Issues Closed: ${this.stats.totalIssuesClosed}
 
 `;
   }

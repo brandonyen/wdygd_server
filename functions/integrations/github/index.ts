@@ -12,61 +12,6 @@ interface GitHubRequestParams {
   includeIssues?: boolean;
 }
 
-interface GitHubCommit {
-  sha: string;
-  message: string;
-  repo: string;
-  url: string;
-}
-
-interface GitHubPullRequest {
-  number: number;
-  title: string;
-  repo: string;
-  state: string;
-  url: string;
-  action: string;
-}
-
-interface GitHubReview {
-  prNumber: number;
-  prTitle: string;
-  repo: string;
-  state: string;
-  url: string;
-}
-
-interface GitHubIssue {
-  number: number;
-  title: string;
-  repo: string;
-  state: string;
-  url: string;
-  action: string;
-}
-
-interface GitHubSummaryData {
-  user: string;
-  dateRange: {
-    startDate: string;
-    endDate: string;
-  };
-  commits: GitHubCommit[];
-  pullRequests: GitHubPullRequest[];
-  reviews: GitHubReview[];
-  issues?: GitHubIssue[];
-  stats: {
-    totalCommits: number;
-    totalPRsOpened: number;
-    totalPRsMerged: number;
-    totalPRsClosed: number;
-    totalReviews: number;
-    totalIssuesOpened?: number;
-    totalIssuesClosed?: number;
-    reposTouched: string[];
-  };
-}
-
 // ============================================================================
 // Token Management
 // ============================================================================
@@ -292,110 +237,19 @@ export async function handler(event: any): Promise<any> {
 
     console.log(`Found ${events.length} events in the specified date range.`);
 
-    // 3. Parse the events into our SummaryData
-    const commits: GitHubCommit[] = [];
-    const prs = new Map<number, GitHubPullRequest>();
-    const reviews: GitHubReview[] = [];
-    const issues = new Map<number, GitHubIssue>();
-    const reposTouched = new Set<string>();
-
-    let totalPRsOpened = 0;
-    let totalPRsMerged = 0;
-    let totalPRsClosed = 0;
-    let totalIssuesOpened = 0;
-    let totalIssuesClosed = 0;
-
-    for (const ev of events) {
-      const repoName = ev.repo.name;
-      reposTouched.add(repoName);
-
-      if (ev.type === "PushEvent" && ev.payload.commits) {
-        for (const commit of ev.payload.commits) {
-          // GitHub's PushEvent only contains commits pushed by this user.
-          commits.push({
-            sha: commit.sha.substring(0, 7),
-            message: commit.message.split("\n")[0],
-            repo: repoName,
-            url: `https://github.com/${repoName}/commit/${commit.sha}`,
-          });
-        }
-      } else if (ev.type === "PullRequestEvent") {
-        const pr = ev.payload.pull_request;
-        const action = ev.payload.action;
-
-        if (action === "opened") totalPRsOpened++;
-        if (action === "closed") {
-          if (pr.merged) totalPRsMerged++;
-          else totalPRsClosed++;
-        }
-
-        prs.set(pr.id, {
-          number: pr.number,
-          title: pr.title,
-          repo: repoName,
-          state: pr.state,
-          url: pr.html_url,
-          action: action,
-        });
-      } else if (ev.type === "PullRequestReviewEvent") {
-        const action = ev.payload.action;
-        if (action === "created" || action === "submitted") {
-          reviews.push({
-            prNumber: ev.payload.pull_request.number,
-            prTitle: ev.payload.pull_request.title,
-            repo: repoName,
-            state: ev.payload.review.state,
-            url: ev.payload.review.html_url,
-          });
-        }
-      } else if (ev.type === "IssuesEvent" && params.includeIssues) {
-        const issue = ev.payload.issue;
-        const action = ev.payload.action;
-
-        if (action === "opened") totalIssuesOpened++;
-        if (action === "closed") totalIssuesClosed++;
-
-        issues.set(issue.id, {
-          number: issue.number,
-          title: issue.title,
-          repo: repoName,
-          state: issue.state,
-          url: issue.html_url,
-          action: action,
-        });
-      }
-    }
-
-    const summaryData: GitHubSummaryData = {
-      user: username,
-      dateRange: {
-        startDate: params.startDate,
-        endDate: params.endDate,
-      },
-      commits,
-      pullRequests: Array.from(prs.values()),
-      reviews,
-      ...(params.includeIssues && { issues: Array.from(issues.values()) }),
-      stats: {
-        totalCommits: commits.length,
-        totalPRsOpened,
-        totalPRsMerged,
-        totalPRsClosed,
-        totalReviews: reviews.length,
-        ...(params.includeIssues && {
-          totalIssuesOpened,
-          totalIssuesClosed,
-        }),
-        reposTouched: Array.from(reposTouched),
-      },
-    };
-
-    if (params.userId && params.integrationId) {
+    if (params.userId && params.integrationId && events.length > 0) {
       const activityEvent = {
         user_id: params.userId,
         integration_id: params.integrationId,
         timestamp: new Date().toISOString(),
-        payload: summaryData,
+        payload: {
+          username,
+          events,
+          dateRange: {
+            startDate: params.startDate,
+            endDate: params.endDate,
+          },
+        },
       };
 
       const { error: insertError } = await (supabase as any)
@@ -412,7 +266,7 @@ export async function handler(event: any): Promise<any> {
       }
     }
 
-    return summaryData;
+    return { username, events };
   } catch (error) {
     console.error("Error fetching GitHub data:", error);
     throw error;
