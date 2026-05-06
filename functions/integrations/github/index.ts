@@ -180,14 +180,14 @@ export async function handler(event: any): Promise<any> {
     }
 
     // Validate date format
-    const startDate = new Date(params.startDate);
-    const endDate = new Date(params.endDate);
+    const startDateObj = new Date(params.startDate);
+    const endDateObj = new Date(params.endDate);
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
       throw new Error("Invalid date format. Use ISO 8601 format.");
     }
 
-    if (startDate > endDate) {
+    if (startDateObj > endDateObj) {
       throw new Error("startDate must be before endDate");
     }
 
@@ -195,47 +195,13 @@ export async function handler(event: any): Promise<any> {
     const userRes = await githubFetch<{ login: string }>("/user", githubToken);
     const username = userRes.login;
 
-    // 2. Fetch events paginated until we hit the start date or run out of pages
-    const events: any[] = [];
-    let page = 1;
+    // Remove milliseconds for GitHub Search API format
+    const startDateStr = startDateObj.toISOString().split(".")[0] + "Z";
+    const endDateStr = endDateObj.toISOString().split(".")[0] + "Z";
 
     console.log(
-      `Fetching events for user ${username} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
+      `Fetching data for user ${username} from ${startDateStr} to ${endDateStr} using Search APIs`,
     );
-
-    while (true) {
-      const pageEvents = await githubFetch<any[]>(
-        `/users/${username}/events`,
-        githubToken,
-        {
-          page: String(page),
-          per_page: "100",
-        },
-      );
-
-      if (!pageEvents || pageEvents.length === 0) break;
-
-      let reachedOlderEvents = false;
-
-      for (const ev of pageEvents) {
-        const evDate = new Date(ev.created_at);
-
-        if (evDate > endDate) continue; // Skip events newer than end date
-        if (evDate < startDate) {
-          reachedOlderEvents = true; // Stop processing further once we pass the start date
-          break;
-        }
-
-        events.push(ev);
-      }
-
-      // GitHub limits events API to 300 events or 90 days, so we break if we reach older events or run out of results
-      if (reachedOlderEvents || pageEvents.length < 100) break;
-
-      page++;
-    }
-
-    console.log(`Found ${events.length} events in the specified date range.`);
 
     const stats = {
       commits: 0,
@@ -251,55 +217,69 @@ export async function handler(event: any): Promise<any> {
     const commitMessages: string[] = [];
     const prDetails: { title: string; body: string; action: string }[] = [];
 
-    for (const ev of events) {
-      if (
-        ev.type !== "PushEvent" &&
-        ev.type !== "PullRequestEvent" &&
-        ev.type !== "PullRequestReviewEvent" &&
-        ev.type !== "IssuesEvent"
-      ) {
-        continue;
-      }
+    // 2. Fetch Commits via Search API
+    try {
+      const commitsQuery = `author:${username} committer-date:${startDateStr}..${endDateStr}`;
+      const commitsRes = await githubFetch<any>(
+        "/search/commits",
+        githubToken,
+        {
+          q: commitsQuery,
+          per_page: "100",
+        },
+      );
 
-      const repoName = ev.repo?.name;
-      if (repoName) reposSet.add(repoName);
+      const commitsData = commitsRes.items || [];
+      stats.commits = commitsData.length;
 
-      if (ev.type === "PushEvent" && ev.payload?.commits) {
-        // Only count commits authored by the user who owns the token
-        // to avoid logging massive numbers of third-party commits pushed in a merge.
-        const userCommits = ev.payload.commits.filter(
-          (c: any) =>
-            c.author?.name === username ||
-            c.author?.name === ev.actor?.display_login ||
-            c.author?.name === ev.actor?.login,
-        );
-
-        stats.commits += userCommits.length;
-
-        for (const commit of userCommits) {
-          if (commit.message && commitMessages.length < 50) {
-            commitMessages.push(commit.message.split("\n")[0]);
-          }
+      for (const commit of commitsData) {
+        if (commit.repository?.name) {
+          reposSet.add(commit.repository.name);
         }
-      } else if (ev.type === "PullRequestEvent") {
-        const action = ev.payload?.action;
-        const pr = ev.payload?.pull_request;
+        if (commit.commit?.message && commitMessages.length < 50) {
+          commitMessages.push(commit.commit.message.split("\n")[0]);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching commits from Search API:", e);
+    }
 
-        if (action === "opened") {
+    // 3. Fetch Authored PRs
+    try {
+      const prsQuery = `author:${username} type:pr updated:${startDateStr}..${endDateStr}`;
+      const prsRes = await githubFetch<any>("/search/issues", githubToken, {
+        q: prsQuery,
+        per_page: "100",
+      });
+
+      const prsData = prsRes.items || [];
+      for (const pr of prsData) {
+        const repoUrl = pr.repository_url;
+        if (repoUrl) {
+          const repoName = repoUrl.split("/repos/")[1];
+          if (repoName) reposSet.add(repoName);
+        }
+
+        const createdAt = new Date(pr.created_at);
+        const closedAt = pr.closed_at ? new Date(pr.closed_at) : null;
+
+        if (createdAt >= startDateObj && createdAt <= endDateObj) {
           stats.prsOpened++;
-          if (pr && prDetails.length < 10) {
+          if (prDetails.length < 10) {
             prDetails.push({
-              title: pr.title || "",
+              title: pr.title,
               body: pr.body || "",
               action: "opened",
             });
           }
-        } else if (action === "closed") {
-          if (pr?.merged) {
+        }
+
+        if (closedAt && closedAt >= startDateObj && closedAt <= endDateObj) {
+          if (pr.pull_request?.merged_at) {
             stats.prsMerged++;
-            if (pr && prDetails.length < 10) {
+            if (prDetails.length < 10) {
               prDetails.push({
-                title: pr.title || "",
+                title: pr.title,
                 body: pr.body || "",
                 action: "merged",
               });
@@ -308,18 +288,62 @@ export async function handler(event: any): Promise<any> {
             stats.prsClosed++;
           }
         }
-      } else if (ev.type === "PullRequestReviewEvent") {
-        const action = ev.payload?.action;
-        if (action === "created" || action === "submitted") {
-          stats.totalReviews++;
+      }
+    } catch (e) {
+      console.error("Error fetching authored PRs from Search API:", e);
+    }
+
+    // 4. Fetch Reviewed PRs
+    try {
+      const reviewsQuery = `reviewed-by:${username} type:pr updated:${startDateStr}..${endDateStr}`;
+      const reviewsRes = await githubFetch<any>("/search/issues", githubToken, {
+        q: reviewsQuery,
+        per_page: "100",
+      });
+
+      // Rough estimate: we just count PRs the user reviewed that had activity in this window.
+      // To get exact review objects requires iterating /pulls/{pr}/reviews, which is rate limit heavy.
+      const reviewsData = reviewsRes.items || [];
+      stats.totalReviews = reviewsData.length;
+    } catch (e) {
+      console.error("Error fetching reviews from Search API:", e);
+    }
+
+    // 5. Fetch Issues (Optional)
+    if (params.includeIssues) {
+      try {
+        const issuesQuery = `author:${username} type:issue updated:${startDateStr}..${endDateStr}`;
+        const issuesRes = await githubFetch<any>(
+          "/search/issues",
+          githubToken,
+          {
+            q: issuesQuery,
+            per_page: "100",
+          },
+        );
+
+        const issuesData = issuesRes.items || [];
+        for (const issue of issuesData) {
+          const createdAt = new Date(issue.created_at);
+          const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
+
+          if (createdAt >= startDateObj && createdAt <= endDateObj) {
+            stats.totalIssuesOpened++;
+          }
+          if (closedAt && closedAt >= startDateObj && closedAt <= endDateObj) {
+            stats.totalIssuesClosed++;
+          }
         }
-      } else if (ev.type === "IssuesEvent") {
-        const action = ev.payload?.action;
-        if (action === "opened") stats.totalIssuesOpened++;
-        if (action === "closed") stats.totalIssuesClosed++;
+      } catch (e) {
+        console.error("Error fetching issues from Search API:", e);
       }
     }
+
     stats.repos = Array.from(reposSet);
+
+    console.log(
+      `Aggregation complete. Found ${stats.commits} commits and ${stats.prsOpened} PRs.`,
+    );
 
     if (
       params.userId &&
