@@ -10,7 +10,7 @@ All requests should be prefixed with your deployed API Gateway root URL (e.g., `
 
 ### **GET `/user-config`**
 
-Retrieves the user configuration based on their email.
+Retrieves the user configuration based on their email. **Note:** This endpoint does not require Cognito authentication.
 
 - **Query Parameters:**
   - `email` (string, required): The user's email address.
@@ -198,3 +198,17 @@ Requests the generation of a new summary from previously collected data. The gen
     }
   }
   ```
+
+---
+
+## 5. Background Jobs
+
+### **Automated Daily Summaries**
+
+The backend relies on an Amazon EventBridge scheduler that triggers every 5 minutes. During this execution, it identifies users who need a daily summary (i.e. those who haven't had a sync in the last 24 hours). 
+
+For these users, it automatically runs the full ingestion pipeline:
+1. Fetches fresh data from all connected integrations (GitHub via the Search API, Slack channels).
+2. Synthesizes this data.
+3. Generates a new `DAILY` summary using the AWS Bedrock LLM.
+4. Updates the `last_sync` field in their `UserConfig`.
