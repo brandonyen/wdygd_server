@@ -1,7 +1,7 @@
 import { getSupabase } from "./get-supabase-client";
 import {
   BedrockRuntimeClient,
-  InvokeModelCommand,
+  ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 
 const bedrockClient = new BedrockRuntimeClient({});
@@ -50,7 +50,9 @@ class SlackAggregator implements ProviderAggregator {
 
     let prompt = `Slack Activity:\n`;
     for (const [_, ch] of this.slackChannels.entries()) {
-      prompt += `- Channel #${ch.name}: ${ch.messagesCount} messages involving ${Array.from(ch.participants).join(", ")}.\n`;
+      prompt += `- Channel #${ch.name}: ${ch.messagesCount} messages involving ${Array.from(
+        ch.participants,
+      ).join(", ")}.\n`;
       if (ch.snippets.length > 0) {
         prompt += `  Sample conversations:\n    ${ch.snippets.join("\n    ")}\n`;
       }
@@ -231,23 +233,28 @@ export async function generateSummary(
 
   prompt += `\nPlease provide a concise, natural-language summary (1-2 paragraphs) detailing what was accomplished, reviewed, or discussed today. Do not hallucinate information not present in the data.`;
 
-  // 5. Call Bedrock
-  const bedrockReq = {
-    modelId: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-    contentType: "application/json",
-    accept: "application/json",
-    body: JSON.stringify({
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  };
+  // 5. Call Bedrock with Converse API
+  const bedrockCommand = new ConverseCommand({
+    modelId: "qwen.qwen3-32b-v1:0",
+    messages: [
+      {
+        role: "user",
+        content: [{ text: prompt }],
+      },
+    ],
+    inferenceConfig: {
+      maxTokens: 1000,
+      temperature: 0.1,
+    },
+  });
 
-  const bedrockResponse = await bedrockClient.send(
-    new InvokeModelCommand(bedrockReq),
-  );
-  const result = JSON.parse(new TextDecoder().decode(bedrockResponse.body));
-  const summaryText = result.content[0].text;
+  const bedrockResponse = await bedrockClient.send(bedrockCommand);
+
+  if (!bedrockResponse.output?.message?.content?.[0]?.text) {
+    throw new Error("Invalid response from Bedrock Converse API");
+  }
+
+  const summaryText = bedrockResponse.output.message.content[0].text;
 
   // 6. Write to Summary table
   const summaryData = {
