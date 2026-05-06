@@ -77,54 +77,32 @@ class GitHubAggregator implements ProviderAggregator {
   private prDetails: { title: string; body: string; action: string }[] = [];
 
   aggregate(p: any): void {
-    const events = p.events || [];
-    for (const ev of events) {
-      const repoName = ev.repo?.name;
-      if (repoName) this.stats.repos.add(repoName);
-
-      if (ev.type === "PushEvent" && ev.payload?.commits) {
-        this.stats.commits += ev.payload.commits.length;
-        for (const commit of ev.payload.commits) {
-          if (commit.message && this.commitMessages.length < 20) {
-            this.commitMessages.push(commit.message.split("\n")[0]);
-          }
+    if (p.stats) {
+      this.stats.commits += p.stats.commits || 0;
+      this.stats.prsOpened += p.stats.prsOpened || 0;
+      this.stats.prsMerged += p.stats.prsMerged || 0;
+      this.stats.prsClosed += p.stats.prsClosed || 0;
+      this.stats.totalReviews += p.stats.totalReviews || 0;
+      this.stats.totalIssuesOpened += p.stats.totalIssuesOpened || 0;
+      this.stats.totalIssuesClosed += p.stats.totalIssuesClosed || 0;
+      if (p.stats.repos) {
+        for (const repo of p.stats.repos) {
+          this.stats.repos.add(repo);
         }
-      } else if (ev.type === "PullRequestEvent") {
-        const action = ev.payload?.action;
-        const pr = ev.payload?.pull_request;
-
-        if (action === "opened") {
-          this.stats.prsOpened++;
-          if (pr && this.prDetails.length < 10) {
-            this.prDetails.push({
-              title: pr.title || "",
-              body: pr.body || "",
-              action: "opened",
-            });
-          }
-        } else if (action === "closed") {
-          if (pr?.merged) {
-            this.stats.prsMerged++;
-            if (pr && this.prDetails.length < 10) {
-              this.prDetails.push({
-                title: pr.title || "",
-                body: pr.body || "",
-                action: "merged",
-              });
-            }
-          } else {
-            this.stats.prsClosed++;
-          }
+      }
+    }
+    if (p.commitMessages) {
+      for (const msg of p.commitMessages) {
+        if (this.commitMessages.length < 50) {
+          this.commitMessages.push(msg);
         }
-      } else if (ev.type === "PullRequestReviewEvent") {
-        const action = ev.payload?.action;
-        if (action === "created" || action === "submitted") {
-          this.stats.totalReviews++;
+      }
+    }
+    if (p.prDetails) {
+      for (const pr of p.prDetails) {
+        if (this.prDetails.length < 10) {
+          this.prDetails.push(pr);
         }
-      } else if (ev.type === "IssuesEvent") {
-        const action = ev.payload?.action;
-        if (action === "opened") this.stats.totalIssuesOpened++;
-        if (action === "closed") this.stats.totalIssuesClosed++;
       }
     }
   }
@@ -157,7 +135,7 @@ class GitHubAggregator implements ProviderAggregator {
 
     if (this.commitMessages.length > 0) {
       prompt += `Sample Commits:\n`;
-      for (const msg of this.commitMessages.slice(0, 10)) {
+      for (const msg of this.commitMessages.slice(0, 50)) {
         prompt += `- ${msg}\n`;
       }
       prompt += `\n`;

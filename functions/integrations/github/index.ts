@@ -237,18 +237,104 @@ export async function handler(event: any): Promise<any> {
 
     console.log(`Found ${events.length} events in the specified date range.`);
 
-    if (params.userId && params.integrationId && events.length > 0) {
+    const stats = {
+      commits: 0,
+      prsOpened: 0,
+      prsMerged: 0,
+      prsClosed: 0,
+      totalReviews: 0,
+      totalIssuesOpened: 0,
+      totalIssuesClosed: 0,
+      repos: [] as string[],
+    };
+    const reposSet = new Set<string>();
+    const commitMessages: string[] = [];
+    const prDetails: { title: string; body: string; action: string }[] = [];
+
+    for (const ev of events) {
+      if (
+        ev.type !== "PushEvent" &&
+        ev.type !== "PullRequestEvent" &&
+        ev.type !== "PullRequestReviewEvent" &&
+        ev.type !== "IssuesEvent"
+      ) {
+        continue;
+      }
+
+      const repoName = ev.repo?.name;
+      if (repoName) reposSet.add(repoName);
+
+      if (ev.type === "PushEvent" && ev.payload?.commits) {
+        stats.commits += ev.payload.commits.length;
+        for (const commit of ev.payload.commits) {
+          if (commit.message && commitMessages.length < 50) {
+            commitMessages.push(commit.message.split("\n")[0]);
+          }
+        }
+      } else if (ev.type === "PullRequestEvent") {
+        const action = ev.payload?.action;
+        const pr = ev.payload?.pull_request;
+
+        if (action === "opened") {
+          stats.prsOpened++;
+          if (pr && prDetails.length < 10) {
+            prDetails.push({
+              title: pr.title || "",
+              body: pr.body || "",
+              action: "opened",
+            });
+          }
+        } else if (action === "closed") {
+          if (pr?.merged) {
+            stats.prsMerged++;
+            if (pr && prDetails.length < 10) {
+              prDetails.push({
+                title: pr.title || "",
+                body: pr.body || "",
+                action: "merged",
+              });
+            }
+          } else {
+            stats.prsClosed++;
+          }
+        }
+      } else if (ev.type === "PullRequestReviewEvent") {
+        const action = ev.payload?.action;
+        if (action === "created" || action === "submitted") {
+          stats.totalReviews++;
+        }
+      } else if (ev.type === "IssuesEvent") {
+        const action = ev.payload?.action;
+        if (action === "opened") stats.totalIssuesOpened++;
+        if (action === "closed") stats.totalIssuesClosed++;
+      }
+    }
+    stats.repos = Array.from(reposSet);
+
+    if (
+      params.userId &&
+      params.integrationId &&
+      (stats.commits > 0 ||
+        stats.prsOpened > 0 ||
+        stats.prsClosed > 0 ||
+        stats.prsMerged > 0 ||
+        stats.totalReviews > 0 ||
+        stats.totalIssuesOpened > 0 ||
+        stats.totalIssuesClosed > 0)
+    ) {
       const activityEvent = {
         user_id: params.userId,
         integration_id: params.integrationId,
         timestamp: new Date().toISOString(),
         payload: {
           username,
-          events,
           dateRange: {
             startDate: params.startDate,
             endDate: params.endDate,
           },
+          stats,
+          commitMessages,
+          prDetails,
         },
       };
 
@@ -266,7 +352,7 @@ export async function handler(event: any): Promise<any> {
       }
     }
 
-    return { username, events };
+    return { username, stats };
   } catch (error) {
     console.error("Error fetching GitHub data:", error);
     throw error;
