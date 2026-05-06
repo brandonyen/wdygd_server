@@ -210,8 +210,8 @@ export async function generateSummary(
       .from("ActivityEvent")
       .select("*")
       .eq("user_id", user_id)
-      .gte("timestamp", start_date)
-      .lte("timestamp", end_date)
+      .gte("start_date", start_date)
+      .lte("end_date", end_date)
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
     if (error) {

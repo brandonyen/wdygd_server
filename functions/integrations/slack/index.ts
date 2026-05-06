@@ -276,11 +276,11 @@ export const handler = async (event: any) => {
     }));
 
     // Write one ActivityEvent per channel to Supabase
-    const now = new Date().toISOString();
     const activityEvents = enrichedChannels.map((channel) => ({
       user_id: userId,
       integration_id: integrationId,
-      timestamp: now,
+      start_date: startDate,
+      end_date: endDate,
       payload: {
         dateRange: { start: startDate, end: endDate },
         channelId: channel.channelId,

@@ -205,9 +205,10 @@ Requests the generation of a new summary from previously collected data. The gen
 
 ### **Automated Daily Summaries**
 
-The backend relies on an Amazon EventBridge scheduler that triggers every 5 minutes. During this execution, it identifies users who need a daily summary (i.e. those who haven't had a sync in the last 24 hours). 
+The backend relies on an Amazon EventBridge scheduler that triggers every 5 minutes. During this execution, it identifies users who need a daily summary (i.e. those who haven't had a sync in the last 24 hours).
 
 For these users, it automatically runs the full ingestion pipeline:
+
 1. Fetches fresh data from all connected integrations (GitHub via the Search API, Slack channels).
 2. Synthesizes this data.
 3. Generates a new `DAILY` summary using the AWS Bedrock LLM.

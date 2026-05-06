@@ -359,7 +359,8 @@ export async function handler(event: any): Promise<any> {
       const activityEvent = {
         user_id: params.userId,
         integration_id: params.integrationId,
-        timestamp: new Date().toISOString(),
+        start_date: params.startDate,
+        end_date: params.endDate,
         payload: {
           username,
           dateRange: {
