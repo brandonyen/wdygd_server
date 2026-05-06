@@ -267,11 +267,11 @@ export class WdygdServerStack extends cdk.Stack {
       .addResource("status")
       .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
 
-    // EventBridge (Daily Scheduler) - triggers periodic checks (every 1 hour)
+    // EventBridge (Daily Scheduler) - triggers periodic checks (every 5 minutes)
     const schedulerRule = new events.Rule(this, "PeriodicSchedulerRule", {
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      schedule: events.Schedule.rate(cdk.Duration.minutes(5)),
       description:
-        "Triggers periodic checks every 1 hour to determine which users need summaries generated.",
+        "Triggers periodic checks every 5 minutes to determine which users need summaries generated.",
     });
 
     // SQS Queue (Ingestion) - buffers ingestion jobs
