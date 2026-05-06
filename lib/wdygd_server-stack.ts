@@ -406,10 +406,6 @@ export class WdygdServerStack extends cdk.Stack {
     userConfigResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(getUserConfigLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
     );
 
     // Get Integration Connections Lambda
