@@ -440,10 +440,6 @@ export class WdygdServerStack extends cdk.Stack {
     integrationConnectionResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(getIntegrationConnectionsLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
     );
 
     // Ingestion API Lambda
@@ -505,10 +501,6 @@ export class WdygdServerStack extends cdk.Stack {
     summaryResource.addMethod(
       "GET",
       new apigw.LambdaIntegration(summaryApiLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
     );
     summaryResource.addMethod(
       "POST",

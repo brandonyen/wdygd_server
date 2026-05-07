@@ -143,6 +143,7 @@ Starts the data collection and summary generation process for a specific user fo
     "message": "Data collection and summary generation started for the past day."
   }
   ```
+
 ### **GET `/summary`**
 
 Retrieves generated summaries for a user, optionally filtered by date range and type.
@@ -160,7 +161,7 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
       {
         "summary_id": "uuid",
         "user_id": "uuid",
-...
+  ...
         "summary_type": "DAILY",
         "created_at": "ISO-8601",
         "start_date": "ISO-8601",

@@ -64,7 +64,7 @@ export const handler = async (event: any) => {
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ data: latest ? (data?.[0] || null) : data }),
+        body: JSON.stringify({ data: latest ? data?.[0] || null : data }),
       };
     }
 
