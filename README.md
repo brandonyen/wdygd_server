@@ -49,7 +49,6 @@ Retrieves all integration connections for a specific user. **Note:** This endpoi
         "provider": "GITHUB" | "SLACK",
         "provider_workspace_id": "string", // Slack workspace ID
         "token_expiration": "ISO-8601",
-        "created_at": "ISO-8601"
       }
     ]
   }
@@ -138,7 +137,9 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
         "start_date": "ISO-8601",
         "end_date": "ISO-8601",
         "content": "Today I reviewed 3 PRs...",
-        "content_array": ["Reviewed 3 PRs...", "Merged feature branch..."]
+        "content_array": ["Reviewed 3 PRs...", "Merged feature branch..."],
+        "github_content_array": ["Reviewed 3 PRs...", "Merged feature branch..."],
+        "slack_content_array": ["Discussed feature with team...", "Answered question in #general..."]
       }
     ]
   }
@@ -169,7 +170,9 @@ Requests the generation of a new summary from previously collected data. The gen
       "start_date": "ISO-8601",
       "end_date": "ISO-8601",
       "content": "...",
-      "content_array": ["...", "..."]
+      "content_array": ["...", "..."],
+      "github_content_array": ["...", "..."],
+      "slack_content_array": ["...", "..."]
     }
   }
   ```
