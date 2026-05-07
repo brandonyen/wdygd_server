@@ -35,7 +35,7 @@ If you need to manually connect an integration (without OAuth), use these endpoi
 
 ### **GET `/integration-connection`**
 
-Retrieves all integration connections for a specific user.
+Retrieves all integration connections for a specific user. **Note:** This endpoint does not require Cognito authentication.
 
 - **Query Parameters:**
   - `user_id` (string, required): The user's ID.
@@ -146,7 +146,7 @@ Starts the data collection and summary generation process for a specific user fo
 
 ### **GET `/summary`**
 
-Retrieves generated summaries for a user, optionally filtered by date range and type.
+Retrieves generated summaries for a user, optionally filtered by date range and type. **Note:** This endpoint does not require Cognito authentication.
 
 - **Query Parameters:**
   - `user_id` (string, required): The user's ID.
