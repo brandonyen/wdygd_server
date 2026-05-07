@@ -217,6 +217,7 @@ async function handleCallback(event: any): Promise<any> {
     ? new Date(Date.now() + authedUser.expires_in * 1000).toISOString()
     : null;
   const teamId = tokenData.team?.id;
+  const teamName = tokenData.team?.name;
 
   // Upsert into Supabase IntegrationConnection
   const supabase = await getSupabase();
@@ -245,6 +246,7 @@ async function handleCallback(event: any): Promise<any> {
         access_token: accessToken,
         refresh_token: refreshToken,
         token_expiration: tokenExpiration,
+        slack_workspace_name: teamName,
       })
       .eq("integration_id", existing.integration_id);
 
@@ -259,6 +261,7 @@ async function handleCallback(event: any): Promise<any> {
         user_id: userId,
         provider: "SLACK",
         provider_workspace_id: teamId,
+        slack_workspace_name: teamName,
         access_token: accessToken,
         refresh_token: refreshToken,
         token_expiration: tokenExpiration,

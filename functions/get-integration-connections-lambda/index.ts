@@ -38,7 +38,7 @@ export const handler = async (event: any) => {
       const { data, error } = await supabase
         .from("IntegrationConnection")
         .select(
-          "integration_id, user_id, provider, provider_workspace_id, token_expiration",
+          "integration_id, user_id, provider, provider_workspace_id, slack_workspace_name, token_expiration",
         )
         .eq("user_id", user_id);
 
