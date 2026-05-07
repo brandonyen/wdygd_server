@@ -77,35 +77,6 @@ The callback URL used by the OAuth provider. The frontend generally does not cal
 
 - **Action:** Stores the tokens securely in Supabase and returns a `302 Redirect` to the `redirectUrl` provided in the initiate step, appending `?success=true`.
 
-### **GET `/auth/<provider>/status`**
-
-Checks if the user has successfully connected the specific integration.
-
-- **Query Parameters:**
-  - `userId` (string, required): The user's ID.
-- **Response (200 OK):**
-
-  ```json
-  // If connected:
-  {
-    "connected": true,
-    "connectedAt": "ISO-8601",
-    "tokenExpiration": "ISO-8601",
-    "workspaces": [ // Slack only
-      {
-        "connectedAt": "ISO-8601",
-        "tokenExpiration": "ISO-8601",
-        "workspaceId": "string"
-      }
-    ]
-  }
-
-  // If not connected:
-  {
-    "connected": false
-  }
-  ```
-
 ### **DELETE `/auth/<provider>`**
 
 Disconnects the integration by deleting the tokens from the database.

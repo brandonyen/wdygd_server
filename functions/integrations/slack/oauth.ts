@@ -290,54 +290,6 @@ async function handleCallback(event: any): Promise<any> {
   };
 }
 
-async function handleStatus(event: any): Promise<any> {
-  const userId = event.queryStringParameters?.userId;
-
-  console.log(`Checking Slack connection status for user_id: ${userId}`);
-
-  if (!userId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "userId query parameter is required" }),
-    };
-  }
-
-  const supabase = await getSupabase();
-  const { data, error } = await supabase
-    .from("IntegrationConnection")
-    .select("created_at, token_expiration, provider_workspace_id")
-    .eq("user_id", userId)
-    .eq("provider", "SLACK");
-
-  const rows = data as any[] | null;
-
-  if (error || !rows || rows.length === 0) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        connected: false,
-        workspaces: [],
-      }),
-    };
-  }
-
-  const workspaces = rows.map((row) => ({
-    connectedAt: row.created_at,
-    tokenExpiration: row.token_expiration,
-    workspaceId: row.provider_workspace_id,
-  }));
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      connected: true,
-      workspaces,
-      connectedAt: rows[0].created_at,
-      tokenExpiration: rows[0].token_expiration,
-    }),
-  };
-}
-
 async function handleDisconnect(event: any): Promise<any> {
   const userId = event.queryStringParameters?.userId;
   const workspaceId = event.queryStringParameters?.workspaceId;
@@ -408,11 +360,6 @@ export async function handler(event: any): Promise<any> {
 
     if (path.endsWith("/callback") && method === "GET") {
       const res = await handleCallback(event);
-      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
-    }
-
-    if (path.endsWith("/status") && method === "GET") {
-      const res = await handleStatus(event);
       return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 

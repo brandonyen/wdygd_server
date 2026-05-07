@@ -274,53 +274,6 @@ async function handleCallback(
 }
 
 /**
- * Check connection status for a user
- * GET /auth/github/status?userId=xxx
- */
-async function handleStatus(
-  event: APIGatewayProxyEvent,
-): Promise<APIGatewayProxyResult> {
-  const userId = event.queryStringParameters?.userId;
-
-  console.log(`Checking GitHub connection status for user_id: ${userId}`);
-
-  if (!userId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "userId query parameter is required" }),
-    };
-  }
-
-  const supabase = await getSupabase();
-
-  const { data: rows, error } = await supabase
-    .from("IntegrationConnection")
-    .select("created_at, token_expiration")
-    .eq("user_id", userId)
-    .eq("provider", "GITHUB");
-
-  if (error || !rows || rows.length === 0) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        connected: false,
-      }),
-    };
-  }
-
-  const token = rows[0] as any;
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      connected: true,
-      connectedAt: token.created_at,
-      tokenExpiration: token.token_expiration,
-    }),
-  };
-}
-
-/**
  * Disconnect GitHub account
  * DELETE /auth/github?userId=xxx
  */
@@ -393,11 +346,6 @@ export async function handler(
     // Route based on path and method
     if (path.endsWith("/callback") && method === "GET") {
       const res = await handleCallback(event);
-      return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
-    }
-
-    if (path.endsWith("/status") && method === "GET") {
-      const res = await handleStatus(event);
       return { ...res, headers: { ...corsHeaders, ...(res.headers || {}) } };
     }
 

@@ -250,9 +250,6 @@ export class WdygdServerStack extends cdk.Stack {
     authGithub
       .addResource("callback")
       .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
-    authGithub
-      .addResource("status")
-      .addMethod("GET", new apigw.LambdaIntegration(githubOAuthFn));
 
     // Slack Auth routes
     const authSlack = auth.addResource("slack", {
@@ -262,9 +259,6 @@ export class WdygdServerStack extends cdk.Stack {
     authSlack.addMethod("DELETE", new apigw.LambdaIntegration(slackOAuthFn));
     authSlack
       .addResource("callback")
-      .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
-    authSlack
-      .addResource("status")
       .addMethod("GET", new apigw.LambdaIntegration(slackOAuthFn));
 
     // EventBridge (Daily Scheduler) - triggers periodic checks (every 5 minutes)
