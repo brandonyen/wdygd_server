@@ -1,4 +1,5 @@
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { getSupabase } from "../utils/get-supabase-client";
 
 const sqsClient = new SQSClient({});
 const corsHeaders = {
@@ -15,7 +16,8 @@ export const handler = async (event: any) => {
 
   try {
     const body = JSON.parse(event.body || "{}");
-    const { user_id } = body;
+    const { user_id, start_date, end_date } = body;
+    const summary_type = body.summary_type || "DAILY";
     console.log(`Ingestion requested for user_id: ${user_id}`);
 
     if (!user_id) {
@@ -26,8 +28,16 @@ export const handler = async (event: any) => {
       };
     }
 
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+    let endDate: Date;
+    let startDate: Date;
+
+    if (start_date && end_date) {
+      startDate = new Date(start_date);
+      endDate = new Date(end_date);
+    } else {
+      endDate = new Date();
+      startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+    }
 
     const queueUrl = process.env.INGESTION_QUEUE_URL;
     if (!queueUrl) {
@@ -35,7 +45,7 @@ export const handler = async (event: any) => {
     }
 
     console.log(
-      `Sending message to IngestionQueue for user_id: ${user_id} with date range ${startDate.toISOString()} to ${endDate.toISOString()}`,
+      `Sending message to IngestionQueue for user_id: ${user_id} with date range ${startDate.toISOString()} to ${endDate.toISOString()} and type ${summary_type}`,
     );
     await sqsClient.send(
       new SendMessageCommand({
@@ -44,17 +54,30 @@ export const handler = async (event: any) => {
           userId: user_id,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          summaryType: "DAILY",
+          summaryType: summary_type,
         }),
       }),
     );
+
+    if (summary_type === "DAILY") {
+      const supabase = await getSupabase();
+      const { error: updateError } = await (supabase.from("UserConfig") as any)
+        .update({ last_sync: endDate.toISOString() })
+        .eq("user_id", user_id);
+
+      if (updateError) {
+        console.error(`Failed to update last_sync for user ${user_id}:`, updateError);
+      } else {
+        console.log(`Successfully updated last_sync for user ${user_id} to ${endDate.toISOString()}`);
+      }
+    }
 
     return {
       statusCode: 202,
       headers: corsHeaders,
       body: JSON.stringify({
         message:
-          "Data collection and summary generation started for the past day.",
+          "Data collection and summary generation started.",
       }),
     };
   } catch (err: any) {

@@ -453,6 +453,7 @@ export class WdygdServerStack extends cdk.Stack {
           externalModules: ["@aws-sdk/*"],
         },
         environment: {
+          ...supabaseEnv,
           INGESTION_QUEUE_URL: ingestionQueue.queueUrl,
         },
       },

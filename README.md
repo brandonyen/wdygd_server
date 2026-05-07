@@ -99,18 +99,21 @@ These endpoints allow the frontend to fetch generated summaries or manually requ
 
 ### **POST `/sync`**
 
-Starts the data collection and summary generation process for a specific user for the past 24 hours. The generated summary will have a `summary_type` of `"DAILY"`.
+Starts the data collection and summary generation process for a specific user. If no date range is provided, it defaults to the past 24 hours with a `summary_type` of `"DAILY"` and updates the user's `last_sync` timestamp. If custom `start_date` and `end_date` are provided, the `summary_type` can be specified (defaults to `"DAILY"`), and the `last_sync` timestamp is only updated if the `summary_type` is `"DAILY"`.
 
 - **Body:**
   ```json
   {
-    "user_id": "uuid"
+    "user_id": "uuid",
+    "start_date": "ISO-8601", // Optional
+    "end_date": "ISO-8601", // Optional
+    "summary_type": "USER_GENERATED" // Optional, defaults to DAILY
   }
   ```
 - **Response (202 Accepted):**
   ```json
   {
-    "message": "Data collection and summary generation started for the past day."
+    "message": "Data collection and summary generation started."
   }
   ```
 

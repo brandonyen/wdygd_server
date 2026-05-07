@@ -102,7 +102,7 @@ exports.handler = async (event: any) => {
         user_id: userId,
         start_date: startDateISO,
         end_date: endDate,
-        summary_type: "DAILY",
+        summary_type: payload.summaryType || "DAILY",
       };
 
       try {
