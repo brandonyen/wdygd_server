@@ -3,6 +3,7 @@ import {
   BedrockRuntimeClient,
   ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
+import { checkExistingSummary } from "./check-existing-summary";
 
 const bedrockClient = new BedrockRuntimeClient({});
 
@@ -176,26 +177,18 @@ export async function generateSummary(
   const supabase = await getSupabase();
 
   // 0. Check if summary already exists
-  const { data: existingSummaries, error: checkError } = await (
-    supabase.from("Summary") as any
-  )
-    .select("*")
-    .eq("user_id", user_id)
-    .eq("start_date", start_date)
-    .eq("end_date", end_date)
-    .eq("summary_type", summary_type);
+  const existingSummary = await checkExistingSummary(
+    user_id,
+    start_date,
+    end_date,
+    summary_type,
+  );
 
-  if (checkError) {
-    throw new Error(
-      `Failed to check existing summaries: ${checkError.message}`,
-    );
-  }
-
-  if (existingSummaries && existingSummaries.length > 0) {
+  if (existingSummary) {
     console.log(
       `Summary already exists for user ${user_id} (${start_date} to ${end_date}) type ${summary_type}. Skipping.`,
     );
-    return { summary: existingSummaries[0], skipped: true };
+    return { summary: existingSummary, skipped: true };
   }
 
   // 1. Fetch Integrations

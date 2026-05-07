@@ -1,5 +1,6 @@
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { getSupabase } from "../utils/get-supabase-client";
+import { checkExistingSummary } from "../utils/check-existing-summary";
 
 const sqsClient = new SQSClient({});
 const corsHeaders = {
@@ -37,6 +38,26 @@ export const handler = async (event: any) => {
     } else {
       endDate = new Date();
       startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    // 1. Check for existing summary
+    const existing = await checkExistingSummary(
+      user_id,
+      startDate.toISOString(),
+      endDate.toISOString(),
+      summary_type,
+    );
+
+    if (existing) {
+      console.log(`Summary already exists for user ${user_id}, returning existing summary.`);
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          data: existing,
+          message: "Summary already exists, returning cached version.",
+        }),
+      };
     }
 
     const queueUrl = process.env.INGESTION_QUEUE_URL;

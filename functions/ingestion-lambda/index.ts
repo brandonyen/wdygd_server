@@ -1,6 +1,7 @@
 import { getSupabase } from "../utils/get-supabase-client";
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { checkExistingSummary } from "../utils/check-existing-summary";
 
 const lambdaClient = new LambdaClient({});
 const sqsClient = new SQSClient({});
@@ -22,7 +23,21 @@ exports.handler = async (event: any) => {
     const userId = payload.userId;
     const startDateISO = payload.startDate;
     const endDate = payload.endDate;
+    const summaryType = payload.summaryType || "DAILY";
     console.log("Processing ingestion for user:", userId);
+
+    // 0. Deduplication check
+    const existing = await checkExistingSummary(
+      userId,
+      startDateISO,
+      endDate,
+      summaryType,
+    );
+
+    if (existing) {
+      console.log(`Summary already exists for user ${userId} (${startDateISO} to ${endDate}), skipping ingestion.`);
+      continue;
+    }
 
     // 1. Fetch IntegrationConnections
     const { data: connections, error } = await supabase
