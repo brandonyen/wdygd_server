@@ -497,14 +497,6 @@ export class WdygdServerStack extends cdk.Stack {
       "GET",
       new apigw.LambdaIntegration(summaryApiLambda),
     );
-    summaryResource.addMethod(
-      "POST",
-      new apigw.LambdaIntegration(summaryApiLambda),
-      {
-        authorizer,
-        authorizationType: apigw.AuthorizationType.COGNITO,
-      },
-    );
 
     // Sync API Integration
     const syncResource = endpoint.root.addResource("sync", {

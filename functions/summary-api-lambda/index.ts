@@ -1,9 +1,8 @@
 import { getSupabase } from "../utils/get-supabase-client";
-import { generateSummary } from "../utils/generate-summary";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+  "Access-Control-Allow-Methods": "OPTIONS,GET",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
 };
 
@@ -65,42 +64,6 @@ export const handler = async (event: any) => {
         statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({ data: latest ? data?.[0] || null : data }),
-      };
-    }
-
-    if (httpMethod === "POST") {
-      const body = JSON.parse(event.body || "{}");
-      const { user_id, start_date, end_date } = body;
-      const summary_type = body.summary_type || "USER_GENERATED";
-
-      console.log(
-        `Requesting summary generation for user_id: ${user_id}, start_date: ${start_date}, end_date: ${end_date}, summary_type: ${summary_type}`,
-      );
-
-      if (!user_id || !start_date || !end_date) {
-        return {
-          statusCode: 400,
-          headers: corsHeaders,
-          body: JSON.stringify({
-            message: "Missing required fields: user_id, start_date, end_date",
-          }),
-        };
-      }
-
-      const { summary } = await generateSummary(
-        user_id,
-        start_date,
-        end_date,
-        summary_type,
-      );
-
-      return {
-        statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          data: summary,
-          message: "Summary generated successfully",
-        }),
       };
     }
 

@@ -157,51 +157,17 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
   }
   ```
 
-### **POST `/summary`**
+#### **Metrics Schema Definitions**
 
-Requests the generation of a new summary from previously collected data. The generation is done synchronously and the resulting summary is immediately returned in the response as well as saved to the database.
-
-- **Body:**
-  ```json
-  {
-    "user_id": "uuid",
-    "start_date": "ISO-8601",
-    "end_date": "ISO-8601",
-    "summary_type": "USER_GENERATED" // Defaults to USER_GENERATED
-  }
-  ```
-- **Response (200 OK):**
-  ```json
-  {
-    "message": "Summary generated successfully",
-    "data": {
-      "summary_id": "uuid",
-      "user_id": "uuid",
-      "summary_type": "USER_GENERATED",
-      "created_at": "ISO-8601",
-      "start_date": "ISO-8601",
-      "end_date": "ISO-8601",
-      "content": "...",
-      "content_array": ["...", "..."],
-      "github_content_array": ["...", "..."],
-      "slack_content_array": ["...", "..."],
-      "github_metrics": {
-        "commits": 0,
-        "prsOpened": 0,
-        "prsMerged": 0,
-        "prsClosed": 0,
-        "totalReviews": 0,
-        "totalIssuesOpened": 0,
-        "totalIssuesClosed": 0,
-        "repos": ["string"]
-      },
-      "slack_metrics": {
-        "totalMessagesCount": 0,
-        "totalChannels": 0
-      }
-    }
-  }
-  ```
+- **`github_metrics`**:
+  - `commits` (number): Count of commits.
+  - `prsOpened` / `prsMerged` / `prsClosed` (number): Pull request activity counts.
+  - `totalReviews` (number): Count of PR reviews submitted.
+  - `totalIssuesOpened` / `totalIssuesClosed` (number): Issue activity counts.
+  - `repos` (string[]): List of repositories with activity.
+- **`slack_metrics`**:
+  - `totalMessagesCount` (number): Total messages across all aggregated channels.
+  - `totalChannels` (number): Number of distinct channels where activity occurred.
 
 ---
 
