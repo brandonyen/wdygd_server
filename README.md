@@ -185,8 +185,20 @@ Requests the generation of a new summary from previously collected data. The gen
       "content_array": ["...", "..."],
       "github_content_array": ["...", "..."],
       "slack_content_array": ["...", "..."],
-      "github_metrics": {},
-      "slack_metrics": {}
+      "github_metrics": {
+        "commits": 0,
+        "prsOpened": 0,
+        "prsMerged": 0,
+        "prsClosed": 0,
+        "totalReviews": 0,
+        "totalIssuesOpened": 0,
+        "totalIssuesClosed": 0,
+        "repos": ["string"]
+      },
+      "slack_metrics": {
+        "totalMessagesCount": 0,
+        "totalChannels": 0
+      }
     }
   }
   ```
