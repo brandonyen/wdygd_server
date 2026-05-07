@@ -142,7 +142,16 @@ Retrieves generated summaries for a user, optionally filtered by date range and 
         "content": "Today I reviewed 3 PRs...",
         "content_array": ["Reviewed 3 PRs...", "Merged feature branch..."],
         "github_content_array": ["Reviewed 3 PRs...", "Merged feature branch..."],
-        "slack_content_array": ["Discussed feature with team...", "Answered question in #general..."]
+        "slack_content_array": ["Discussed feature with team...", "Answered question in #general..."],
+        "github_metrics": {
+          "commits": 5,
+          "prsOpened": 1,
+          "repos": ["brandonyen/wdygd_server"]
+        },
+        "slack_metrics": {
+          "totalMessagesCount": 12,
+          "totalChannels": 3
+        }
       }
     ]
   }
@@ -175,7 +184,9 @@ Requests the generation of a new summary from previously collected data. The gen
       "content": "...",
       "content_array": ["...", "..."],
       "github_content_array": ["...", "..."],
-      "slack_content_array": ["...", "..."]
+      "slack_content_array": ["...", "..."],
+      "github_metrics": {},
+      "slack_metrics": {}
     }
   }
   ```

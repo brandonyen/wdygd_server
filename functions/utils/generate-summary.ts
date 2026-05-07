@@ -9,6 +9,7 @@ const bedrockClient = new BedrockRuntimeClient({});
 interface ProviderAggregator {
   aggregate(payload: any): void;
   getPrompt(): string;
+  getMetrics(): any;
 }
 
 class SlackAggregator implements ProviderAggregator {
@@ -58,6 +59,17 @@ class SlackAggregator implements ProviderAggregator {
       }
     }
     return prompt + "\n";
+  }
+
+  getMetrics(): any {
+    let totalMessagesCount = 0;
+    for (const [_, ch] of this.slackChannels.entries()) {
+      totalMessagesCount += ch.messagesCount;
+    }
+    return {
+      totalMessagesCount,
+      totalChannels: this.slackChannels.size,
+    };
   }
 }
 
@@ -142,6 +154,13 @@ class GitHubAggregator implements ProviderAggregator {
     }
 
     return prompt;
+  }
+
+  getMetrics(): any {
+    return {
+      ...this.stats,
+      repos: Array.from(this.stats.repos),
+    };
   }
 }
 
@@ -307,6 +326,12 @@ Return ONLY valid JSON without any markdown formatting, backticks, or extra text
   const githubSummaryArray = parsedResponse.github_content_array || [];
   const slackSummaryArray = parsedResponse.slack_content_array || [];
 
+  const slackAggregator = aggregators.get("SLACK");
+  const githubAggregator = aggregators.get("GITHUB");
+
+  const slackMetrics = slackAggregator ? slackAggregator.getMetrics() : {};
+  const githubMetrics = githubAggregator ? githubAggregator.getMetrics() : {};
+
   // 6. Write to Summary table
   const summaryData = {
     user_id: user_id,
@@ -318,6 +343,8 @@ Return ONLY valid JSON without any markdown formatting, backticks, or extra text
     content_array: summaryArray,
     github_content_array: githubSummaryArray,
     slack_content_array: slackSummaryArray,
+    github_metrics: githubMetrics,
+    slack_metrics: slackMetrics,
   };
 
   const { data: insertedData, error: insertError } = await (
