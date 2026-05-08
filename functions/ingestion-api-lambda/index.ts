@@ -35,16 +35,18 @@ export const handler = async (event: any) => {
     if (start_date && end_date) {
       startDate = new Date(start_date);
       endDate = new Date(end_date);
-      
+
       const MAX_DAYS = 31;
       const msDiff = endDate.getTime() - startDate.getTime();
       const daysDiff = msDiff / (1000 * 60 * 60 * 24);
-      
+
       if (daysDiff > MAX_DAYS) {
         return {
           statusCode: 400,
           headers: corsHeaders,
-          body: JSON.stringify({ message: "Date range cannot exceed 31 days." }),
+          body: JSON.stringify({
+            message: "Date range cannot exceed 31 days.",
+          }),
         };
       }
     } else {
@@ -61,7 +63,9 @@ export const handler = async (event: any) => {
     );
 
     if (existing) {
-      console.log(`Summary already exists for user ${user_id}, returning existing summary.`);
+      console.log(
+        `Summary already exists for user ${user_id}, returning existing summary.`,
+      );
       return {
         statusCode: 200,
         headers: corsHeaders,
@@ -99,9 +103,14 @@ export const handler = async (event: any) => {
         .eq("user_id", user_id);
 
       if (updateError) {
-        console.error(`Failed to update last_sync for user ${user_id}:`, updateError);
+        console.error(
+          `Failed to update last_sync for user ${user_id}:`,
+          updateError,
+        );
       } else {
-        console.log(`Successfully updated last_sync for user ${user_id} to ${endDate.toISOString()}`);
+        console.log(
+          `Successfully updated last_sync for user ${user_id} to ${endDate.toISOString()}`,
+        );
       }
     }
 
@@ -109,8 +118,7 @@ export const handler = async (event: any) => {
       statusCode: 202,
       headers: corsHeaders,
       body: JSON.stringify({
-        message:
-          "Data collection and summary generation started.",
+        message: "Data collection and summary generation started.",
       }),
     };
   } catch (err: any) {

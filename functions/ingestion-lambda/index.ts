@@ -35,7 +35,9 @@ exports.handler = async (event: any) => {
     );
 
     if (existing) {
-      console.log(`Summary already exists for user ${userId} (${startDateISO} to ${endDate}), skipping ingestion.`);
+      console.log(
+        `Summary already exists for user ${userId} (${startDateISO} to ${endDate}), skipping ingestion.`,
+      );
       continue;
     }
 

@@ -265,7 +265,8 @@ export async function generateSummary(
   // 4. Build Prompt Template
   const start = new Date(start_date);
   const end = new Date(end_date);
-  const isMultiDay = (end.getTime() - start.getTime()) > (24 * 60 * 60 * 1000 + 1000); // 24h + small buffer
+  const isMultiDay =
+    end.getTime() - start.getTime() > 24 * 60 * 60 * 1000 + 1000; // 24h + small buffer
 
   let prompt = `You are an AI assistant. Generate a professional and concise summary of an individual's work activities based on the following aggregated data. You must strictly focus on the individual person's accomplishments, reviews, and discussions, rather than the team's overall progress.\n\n`;
 
@@ -274,8 +275,12 @@ export async function generateSummary(
   }
 
   const timeFrameDesc = isMultiDay ? "the specified period" : "today";
-  const avoidDailyPhrases = isMultiDay ? "Since this summary covers multiple days, do NOT use phrases like 'today's work', 'today I...', or 'accomplished today'. Instead, refer to the activities across the entire period." : "";
-  const paragraphRequirement = isMultiDay ? "as many paragraphs as necessary while keeping relatively concise (for example, if there is a lot of activity across many repositories, use more paragraphs)" : "1-2 paragraphs";
+  const avoidDailyPhrases = isMultiDay
+    ? "Since this summary covers multiple days, do NOT use phrases like 'today's work', 'today I...', or 'accomplished today'. Instead, refer to the activities across the entire period."
+    : "";
+  const paragraphRequirement = isMultiDay
+    ? "as many paragraphs as necessary while keeping relatively concise (for example, if there is a lot of activity across many repositories, use more paragraphs)"
+    : "1-2 paragraphs";
 
   prompt += `\nPlease provide a concise summary detailing what the individual accomplished, reviewed, or discussed during ${timeFrameDesc}. Do not hallucinate information not present in the data. ${avoidDailyPhrases}
 
