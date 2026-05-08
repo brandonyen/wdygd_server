@@ -267,7 +267,7 @@ export async function generateSummary(
   const end = new Date(end_date);
   const isMultiDay = (end.getTime() - start.getTime()) > (24 * 60 * 60 * 1000 + 1000); // 24h + small buffer
 
-  let prompt = `You are an AI assistant. Generate a professional and concise summary of work activities based on the following aggregated data.\n\n`;
+  let prompt = `You are an AI assistant. Generate a professional and concise summary of an individual's work activities based on the following aggregated data. You must strictly focus on the individual person's accomplishments, reviews, and discussions, rather than the team's overall progress.\n\n`;
 
   for (const aggregator of aggregators.values()) {
     prompt += aggregator.getPrompt();
@@ -277,7 +277,7 @@ export async function generateSummary(
   const avoidDailyPhrases = isMultiDay ? "Since this summary covers multiple days, do NOT use phrases like 'today's work', 'today I...', or 'accomplished today'. Instead, refer to the activities across the entire period." : "";
   const paragraphRequirement = isMultiDay ? "exactly 2 paragraphs, providing a more detailed and comprehensive breakdown" : "1-2 paragraphs";
 
-  prompt += `\nPlease provide a concise summary detailing what was accomplished, reviewed, or discussed during ${timeFrameDesc}. Do not hallucinate information not present in the data. ${avoidDailyPhrases}
+  prompt += `\nPlease provide a concise summary detailing what the individual accomplished, reviewed, or discussed during ${timeFrameDesc}. Do not hallucinate information not present in the data. ${avoidDailyPhrases}
 
 You must return your response as a valid JSON object with exactly four keys:
 1. "content": A natural-language summary (${paragraphRequirement}) detailing the activities.
