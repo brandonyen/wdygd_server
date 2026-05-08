@@ -35,6 +35,18 @@ export const handler = async (event: any) => {
     if (start_date && end_date) {
       startDate = new Date(start_date);
       endDate = new Date(end_date);
+      
+      const MAX_DAYS = 31;
+      const msDiff = endDate.getTime() - startDate.getTime();
+      const daysDiff = msDiff / (1000 * 60 * 60 * 24);
+      
+      if (daysDiff > MAX_DAYS) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ message: "Date range cannot exceed 31 days." }),
+        };
+      }
     } else {
       endDate = new Date();
       startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);

@@ -275,11 +275,12 @@ export async function generateSummary(
 
   const timeFrameDesc = isMultiDay ? "the specified period" : "today";
   const avoidDailyPhrases = isMultiDay ? "Since this summary covers multiple days, do NOT use phrases like 'today's work', 'today I...', or 'accomplished today'. Instead, refer to the activities across the entire period." : "";
+  const paragraphRequirement = isMultiDay ? "exactly 2 paragraphs, providing a more detailed and comprehensive breakdown" : "1-2 paragraphs";
 
   prompt += `\nPlease provide a concise summary detailing what was accomplished, reviewed, or discussed during ${timeFrameDesc}. Do not hallucinate information not present in the data. ${avoidDailyPhrases}
 
 You must return your response as a valid JSON object with exactly four keys:
-1. "content": A natural-language summary (1-2 paragraphs) detailing the activities.
+1. "content": A natural-language summary (${paragraphRequirement}) detailing the activities.
 2. "content_array": An array of strings representing the same activities, but broken down into bullet points. Do NOT use first-person pronouns like "I" or "me" in this array. Start each point with an action verb in the past tense (e.g., "Focused on improving...", "Reviewed pull requests...").
 3. "github_content_array": An array of strings representing ONLY the GitHub activities, broken down into bullet points. Start each point with an action verb in the past tense.
 4. "slack_content_array": An array of strings representing ONLY the Slack activities, broken down into bullet points. Start each point with an action verb in the past tense.
