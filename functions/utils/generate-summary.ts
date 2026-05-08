@@ -275,7 +275,7 @@ export async function generateSummary(
 
   const timeFrameDesc = isMultiDay ? "the specified period" : "today";
   const avoidDailyPhrases = isMultiDay ? "Since this summary covers multiple days, do NOT use phrases like 'today's work', 'today I...', or 'accomplished today'. Instead, refer to the activities across the entire period." : "";
-  const paragraphRequirement = isMultiDay ? "exactly 2 paragraphs, providing a more detailed and comprehensive breakdown" : "1-2 paragraphs";
+  const paragraphRequirement = isMultiDay ? "as many paragraphs as necessary while keeping relatively concise (for example, if there is a lot of activity across many repositories, use more paragraphs)" : "1-2 paragraphs";
 
   prompt += `\nPlease provide a concise summary detailing what the individual accomplished, reviewed, or discussed during ${timeFrameDesc}. Do not hallucinate information not present in the data. ${avoidDailyPhrases}
 
